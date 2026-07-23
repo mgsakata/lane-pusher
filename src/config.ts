@@ -342,6 +342,9 @@ export const ABILITY_BUTTON = { xMin: 0.78, yMin: 0.9 };
  */
 export const PAUSE_BUTTON = { xMin: 0.88, yMax: 0.06 };
 
+/** Top-left tap region that toggles mute. */
+export const MUTE_BUTTON = { xMax: 0.1, yMax: 0.06 };
+
 // ---------------------------------------------------------------- scoring
 
 export const SCORE = {

@@ -1,4 +1,5 @@
 import './style.css';
+import { SoundEngine } from './audio';
 import { HEIGHT, WIDTH } from './config';
 import { Game } from './game';
 import { Input } from './input';
@@ -14,6 +15,18 @@ const ctx: CanvasRenderingContext2D = context;
 
 const input = new Input(canvas);
 const game = new Game(input);
+
+const sound = new SoundEngine();
+sound.attach(game);
+
+// Browsers require a user gesture before audio can start.
+const unlockAudio = () => {
+  sound.resume();
+  window.removeEventListener('pointerdown', unlockAudio);
+  window.removeEventListener('keydown', unlockAudio);
+};
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 
 /**
  * The canvas keeps a fixed logical size (WIDTH x HEIGHT) and is letterboxed
@@ -43,8 +56,10 @@ function frame(now: number) {
   const dt = Math.min((now - previous) / 1000, MAX_STEP);
   previous = now;
 
+  if (input.consumeMute()) sound.toggleMute();
+
   game.update(dt);
-  render(ctx, game);
+  render(ctx, game, sound.muted);
 
   requestAnimationFrame(frame);
 }

@@ -15,7 +15,11 @@ import {
 import type { Game } from './game';
 import type { Enemy, Pickup } from './types';
 
-export function render(ctx: CanvasRenderingContext2D, game: Game) {
+export function render(
+  ctx: CanvasRenderingContext2D,
+  game: Game,
+  muted = false,
+) {
   ctx.save();
 
   ctx.fillStyle = COLORS.bg;
@@ -38,6 +42,7 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.restore();
 
   drawHud(ctx, game);
+  drawMuteButton(ctx, muted);
   drawBossBar(ctx, game);
   if (game.phase === 'title' && !game.showLegend) drawTitle(ctx, game);
   if (game.phase === 'gameover' && !game.showLegend) drawGameOver(ctx, game);
@@ -337,11 +342,11 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.textAlign = 'left';
   ctx.fillStyle = COLORS.text;
   ctx.font = 'bold 26px system-ui, sans-serif';
-  ctx.fillText(String(game.score), 16, 14);
+  ctx.fillText(String(game.score), 42, 14);
 
   ctx.font = '12px system-ui, sans-serif';
   ctx.fillStyle = COLORS.textDim;
-  ctx.fillText(`BEST ${game.bestScore}`, 16, 46);
+  ctx.fillText(`BEST ${game.bestScore}`, 42, 46);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = COLORS.text;
@@ -379,6 +384,53 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
   drawEffectBar(ctx, game);
   if (game.phase === 'playing') drawAbility(ctx, game);
   drawMenuButton(ctx, game);
+}
+
+/** Top-left speaker button reflecting the mute state. */
+function drawMuteButton(ctx: CanvasRenderingContext2D, muted: boolean) {
+  const cx = 20;
+  const cy = 22;
+  const r = 13;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = COLORS.textDim;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Speaker cone.
+  const color = muted ? COLORS.textDim : COLORS.text;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, cy - 3);
+  ctx.lineTo(cx - 2, cy - 3);
+  ctx.lineTo(cx + 2, cy - 6);
+  ctx.lineTo(cx + 2, cy + 6);
+  ctx.lineTo(cx - 2, cy + 3);
+  ctx.lineTo(cx - 6, cy + 3);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  if (muted) {
+    // A slash for muted.
+    ctx.beginPath();
+    ctx.moveTo(cx + 4, cy - 5);
+    ctx.lineTo(cx + 9, cy + 5);
+    ctx.stroke();
+  } else {
+    // Sound waves.
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, 4, -0.8, 0.8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, 7, -0.7, 0.7);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /** Top-right button: pause bars during play, a "?" on the menus. */

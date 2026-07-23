@@ -1,4 +1,4 @@
-import { ABILITY_BUTTON, LANE_COUNT, PAUSE_BUTTON } from './config';
+import { ABILITY_BUTTON, LANE_COUNT, MUTE_BUTTON, PAUSE_BUTTON } from './config';
 
 /**
  * What the game polls each frame for player intent. The DOM `Input` implements
@@ -28,6 +28,7 @@ export class Input implements InputSource {
   private ability = false;
   private pause = false;
   private help = false;
+  private mute = false;
   private disposers: Array<() => void> = [];
   private canvas: HTMLCanvasElement;
 
@@ -83,6 +84,10 @@ export class Input implements InputSource {
       const fx = (e.clientX - rect.left) / rect.width;
       const fy = (e.clientY - rect.top) / rect.height;
 
+      if (fx < MUTE_BUTTON.xMax && fy < MUTE_BUTTON.yMax) {
+        this.mute = true;
+        return;
+      }
       if (fx > PAUSE_BUTTON.xMin && fy < PAUSE_BUTTON.yMax) {
         this.pause = true;
         return;
@@ -131,6 +136,13 @@ export class Input implements InputSource {
   consumeHelp(): boolean {
     const value = this.help;
     this.help = false;
+    return value;
+  }
+
+  /** Not part of InputSource — polled directly by the audio host. */
+  consumeMute(): boolean {
+    const value = this.mute;
+    this.mute = false;
     return value;
   }
 
