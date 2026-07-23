@@ -8,6 +8,7 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   PLAYER,
+  POWERUP_DEFS,
   WEAPON_DEFS,
   WIDTH,
 } from './config';
@@ -38,8 +39,9 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
 
   drawHud(ctx, game);
   drawBossBar(ctx, game);
-  if (game.phase === 'title') drawTitle(ctx, game);
-  if (game.phase === 'gameover') drawGameOver(ctx, game);
+  if (game.phase === 'title' && !game.showLegend) drawTitle(ctx, game);
+  if (game.phase === 'gameover' && !game.showLegend) drawGameOver(ctx, game);
+  if (game.paused || game.showLegend) drawLegend(ctx, game.paused);
 }
 
 // ------------------------------------------------------------------- field
@@ -347,7 +349,7 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
   const waveLabel = game.spawner.isBossWave
     ? `WAVE ${game.spawner.wave} · BOSS`
     : `WAVE ${game.spawner.wave}`;
-  ctx.fillText(waveLabel, WIDTH - 16, 16);
+  ctx.fillText(waveLabel, WIDTH - 44, 16);
 
   // Wave timer: filled while spawning, dimmed during the breather.
   const barWidth = 110;
@@ -376,6 +378,35 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
   drawHealth(ctx, game);
   drawEffectBar(ctx, game);
   if (game.phase === 'playing') drawAbility(ctx, game);
+  drawMenuButton(ctx, game);
+}
+
+/** Top-right button: pause bars during play, a "?" on the menus. */
+function drawMenuButton(ctx: CanvasRenderingContext2D, game: Game) {
+  const cx = WIDTH - 22;
+  const cy = 22;
+  const r = 13;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = COLORS.textDim;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  if (game.phase === 'playing' && !game.paused) {
+    ctx.fillStyle = COLORS.text;
+    ctx.fillRect(cx - 4, cy - 5, 3, 10);
+    ctx.fillRect(cx + 1, cy - 5, 3, 10);
+  } else {
+    ctx.fillStyle = COLORS.text;
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', cx, cy + 0.5);
+  }
+  ctx.restore();
 }
 
 function drawBossBar(ctx: CanvasRenderingContext2D, game: Game) {
@@ -528,8 +559,15 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game) {
     '#ff5cf0',
   );
   centered(ctx, 'PRESS SPACE OR TAP TO START', HEIGHT / 2 + 78, 'bold 16px', COLORS.text);
+  centered(
+    ctx,
+    'Tap ? (top-right) or press H for the guide',
+    HEIGHT / 2 + 106,
+    '13px',
+    COLORS.textDim,
+  );
   if (game.bestScore > 0) {
-    centered(ctx, `BEST ${game.bestScore}`, HEIGHT / 2 + 112, '14px', COLORS.textDim);
+    centered(ctx, `BEST ${game.bestScore}`, HEIGHT / 2 + 136, '14px', COLORS.textDim);
   }
 }
 
@@ -553,6 +591,67 @@ function drawGameOver(ctx: CanvasRenderingContext2D, game: Game) {
     isBest ? COLORS.player : COLORS.textDim,
   );
   centered(ctx, 'PRESS SPACE OR TAP TO RETRY', HEIGHT / 2 + 90, 'bold 16px', COLORS.text);
+}
+
+function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
+  dimScreen(ctx);
+
+  let y = 60;
+  centered(ctx, resuming ? 'PAUSED' : 'GUIDE', y, 'bold 26px', COLORS.player);
+  y += 38;
+
+  const section = (title: string) => {
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, 40, y);
+    y += 20;
+  };
+  const row = (color: string, label: string, desc: string) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(52, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, 64, y);
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(desc, 142, y);
+    y += 22;
+  };
+
+  section('WEAPONS  (switch by pickup)');
+  for (const kind of ['blaster', 'scatter', 'railgun'] as const) {
+    const w = WEAPON_DEFS[kind];
+    row(w.color, w.name, w.desc);
+  }
+  section('UPGRADES  (permanent, stackable)');
+  for (const d of POWERUP_DEFS.filter((d) => d.type === 'buff')) {
+    row(d.color, d.label, d.desc);
+  }
+  section('PICKUPS  (instant)');
+  for (const d of POWERUP_DEFS.filter((d) => d.type === 'instant')) {
+    row(d.color, d.label, d.desc);
+  }
+  section('ABILITY');
+  row(ABILITY.color, ABILITY.name, ABILITY.desc);
+
+  y += 10;
+  centered(ctx, 'Dodge pink DAMPENERS — they strip your upgrades', y, '11px', '#ff5cf0');
+  y += 22;
+  centered(ctx, '← →  or tap a lane to move   ·   SPACE = PULSE', y, '11px', COLORS.textDim);
+  y += 30;
+  centered(
+    ctx,
+    resuming ? 'TAP or ESC to resume' : 'TAP or H to close',
+    y,
+    'bold 14px',
+    COLORS.text,
+  );
 }
 
 function dimScreen(ctx: CanvasRenderingContext2D) {

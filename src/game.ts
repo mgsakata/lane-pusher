@@ -61,6 +61,11 @@ export interface Player {
 export class Game {
   phase: Phase = 'title';
 
+  /** True while the run is paused (only meaningful during 'playing'). */
+  paused = false;
+  /** True while the help/legend overlay is open on a menu screen. */
+  showLegend = false;
+
   player: Player = createPlayer();
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
@@ -119,6 +124,8 @@ export class Game {
     this.killStreak = 0;
     this.elapsed = 0;
     this.shake = 0;
+    this.paused = false;
+    this.showLegend = false;
     this.phase = 'playing';
     this.events.emit('gameStart', {});
   }
@@ -132,13 +139,27 @@ export class Game {
     const laneTarget = this.input.consumeLaneTarget();
     const confirm = this.input.consumeConfirm();
     const ability = this.input.consumeAbility();
+    const pause = this.input.consumePause();
+    const help = this.input.consumeHelp();
+    const menuToggle = pause || help;
 
     if (this.phase !== 'playing') {
-      // A tap sets a lane and confirms at once, so either signal starts a run.
-      if (confirm || laneTarget !== null) this.start();
+      // On the menus, the pause/help button toggles the guide overlay.
+      if (menuToggle) {
+        this.showLegend = !this.showLegend;
+      } else if (confirm || laneTarget !== null) {
+        // A tap closes the guide if open, otherwise starts a run.
+        if (this.showLegend) this.showLegend = false;
+        else this.start();
+      }
       this.decayFx(dt);
       return;
     }
+
+    // While playing, pause/help freezes the run and shows the guide.
+    if (menuToggle) this.paused = !this.paused;
+    else if (this.paused && confirm) this.paused = false;
+    if (this.paused) return;
 
     this.elapsed += dt;
     if (laneTarget !== null) {

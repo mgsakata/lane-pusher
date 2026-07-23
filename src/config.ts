@@ -55,6 +55,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
   blaster: {
     kind: 'blaster',
     name: 'BLASTER',
+    desc: 'Fast single shots up your lane',
     color: '#8fe9ff',
     baseCooldown: 0.28,
     baseDamage: 1,
@@ -67,6 +68,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
   scatter: {
     kind: 'scatter',
     name: 'SCATTER',
+    desc: 'Pellet spread covering both lanes',
     color: '#ffd166',
     baseCooldown: 0.46,
     baseDamage: 1,
@@ -79,6 +81,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
   railgun: {
     kind: 'railgun',
     name: 'RAILGUN',
+    desc: 'Slow, piercing, heavy hits',
     color: '#c77dff',
     baseCooldown: 0.72,
     baseDamage: 3,
@@ -281,19 +284,19 @@ export const WAVE = {
 
 export const POWERUP_DEFS: PowerUpDef[] = [
   // Blaster
-  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#8fe9ff', weight: 10, maxLevel: 3 },
-  { kind: 'twin', label: 'TWIN', type: 'buff', color: '#8fe9ff', weight: 8 },
+  { kind: 'rapid', label: 'RAPID', desc: 'Blaster: faster fire rate', type: 'buff', color: '#8fe9ff', weight: 10, maxLevel: 3 },
+  { kind: 'twin', label: 'TWIN', desc: 'Blaster: fire both lanes', type: 'buff', color: '#8fe9ff', weight: 8 },
   // Scatter
-  { kind: 'spread', label: 'SPREAD', type: 'buff', color: '#ffd166', weight: 10, maxLevel: 3 },
-  { kind: 'punch', label: 'PUNCH', type: 'buff', color: '#ffd166', weight: 8, maxLevel: 3 },
+  { kind: 'spread', label: 'SPREAD', desc: 'Scatter: more pellets', type: 'buff', color: '#ffd166', weight: 10, maxLevel: 3 },
+  { kind: 'punch', label: 'PUNCH', desc: 'Scatter: more damage', type: 'buff', color: '#ffd166', weight: 8, maxLevel: 3 },
   // Railgun
-  { kind: 'charge', label: 'CHARGE', type: 'buff', color: '#c77dff', weight: 10, maxLevel: 3 },
-  { kind: 'overload', label: 'OVERLD', type: 'buff', color: '#c77dff', weight: 8, maxLevel: 3 },
+  { kind: 'charge', label: 'CHARGE', desc: 'Railgun: faster fire rate', type: 'buff', color: '#c77dff', weight: 10, maxLevel: 3 },
+  { kind: 'overload', label: 'OVERLD', desc: 'Railgun: more damage', type: 'buff', color: '#c77dff', weight: 8, maxLevel: 3 },
   // Universal
-  { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
-  { kind: 'shield', label: 'SHLD', type: 'instant', color: '#4361ee', weight: 6 },
-  { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
-  { kind: 'bomb', label: 'BOMB', type: 'instant', color: '#ef476f', weight: 4 },
+  { kind: 'slow', label: 'SLOW', desc: 'Enemies move slower', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
+  { kind: 'shield', label: 'SHLD', desc: 'Blocks the next 2 hits', type: 'instant', color: '#4361ee', weight: 6 },
+  { kind: 'heal', label: 'HEAL', desc: 'Restore 1 health', type: 'instant', color: '#3ddc97', weight: 5 },
+  { kind: 'bomb', label: 'BOMB', desc: 'Vaporize all enemies', type: 'instant', color: '#ef476f', weight: 4 },
 ];
 
 /** Buffs/instants that can drop regardless of the active weapon. */
@@ -317,6 +320,7 @@ export const POWERUP = {
 /** The chargeable active ability (PULSE): a defensive screen-clear + i-frames. */
 export const ABILITY = {
   name: 'PULSE',
+  desc: 'Clear shots + brief shield. Charges from kills.',
   /** Kills needed to fully charge. */
   maxCharge: 22,
   /** Damage dealt to every regular enemy on activation. */
@@ -331,6 +335,12 @@ export const ABILITY = {
  * switching lanes — the bottom-right corner. Keyboard: Space.
  */
 export const ABILITY_BUTTON = { xMin: 0.78, yMin: 0.9 };
+
+/**
+ * Top-right tap region that pauses (during play) or opens the guide (on the
+ * menus). Keyboard: Escape / P to pause, H for help.
+ */
+export const PAUSE_BUTTON = { xMin: 0.88, yMax: 0.06 };
 
 // ---------------------------------------------------------------- scoring
 

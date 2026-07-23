@@ -25,6 +25,8 @@ export class ScriptedInput implements InputSource {
   private laneTarget: number | null = null;
   private confirm = false;
   private ability = false;
+  private pause = false;
+  private help = false;
 
   setLane(lane: number) {
     this.laneTarget = lane;
@@ -36,6 +38,14 @@ export class ScriptedInput implements InputSource {
 
   triggerAbility() {
     this.ability = true;
+  }
+
+  triggerPause() {
+    this.pause = true;
+  }
+
+  triggerHelp() {
+    this.help = true;
   }
 
   consumeLaneTarget(): number | null {
@@ -54,6 +64,18 @@ export class ScriptedInput implements InputSource {
     const a = this.ability;
     this.ability = false;
     return a;
+  }
+
+  consumePause(): boolean {
+    const p = this.pause;
+    this.pause = false;
+    return p;
+  }
+
+  consumeHelp(): boolean {
+    const h = this.help;
+    this.help = false;
+    return h;
   }
 }
 

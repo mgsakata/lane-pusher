@@ -98,6 +98,51 @@ describe('active ability', () => {
   });
 });
 
+describe('pause and help', () => {
+  it('pausing freezes the run and unpausing resumes it', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.enemies = [makeBoss({ kind: 'grunt', y: 100, speed: 120, radius: 20, hp: 3, maxHp: 3 })];
+
+    input.triggerPause();
+    game.update(1 / 60);
+    expect(game.paused).toBe(true);
+
+    const frozenY = game.enemies[0].y;
+    for (let i = 0; i < 60; i += 1) game.update(1 / 60);
+    expect(game.enemies[0].y).toBe(frozenY);
+
+    input.triggerPause();
+    game.update(1 / 60);
+    expect(game.paused).toBe(false);
+    game.update(1 / 60);
+    expect(game.enemies[0].y).toBeGreaterThan(frozenY);
+  });
+
+  it('opens the guide on the title screen without starting a run', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    expect(game.phase).toBe('title');
+
+    input.triggerHelp();
+    game.update(1 / 60);
+    expect(game.showLegend).toBe(true);
+    expect(game.phase).toBe('title');
+
+    // A tap closes the guide and still does not start.
+    input.press();
+    game.update(1 / 60);
+    expect(game.showLegend).toBe(false);
+    expect(game.phase).toBe('title');
+
+    // With the guide closed, a tap starts the run.
+    input.press();
+    game.update(1 / 60);
+    expect(game.phase).toBe('playing');
+  });
+});
+
 describe('boss fights', () => {
   it('a boss holds at its line instead of crossing the goal', () => {
     const game = new Game(new ScriptedInput());

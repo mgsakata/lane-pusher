@@ -1,4 +1,4 @@
-import { ABILITY_BUTTON, LANE_COUNT } from './config';
+import { ABILITY_BUTTON, LANE_COUNT, PAUSE_BUTTON } from './config';
 
 /**
  * What the game polls each frame for player intent. The DOM `Input` implements
@@ -11,6 +11,10 @@ export interface InputSource {
   consumeConfirm(): boolean;
   /** Whether the active ability was triggered since the last call. */
   consumeAbility(): boolean;
+  /** Whether pause was toggled (Esc/P, or the pause button) since the last call. */
+  consumePause(): boolean;
+  /** Whether help was requested (H key) since the last call. */
+  consumeHelp(): boolean;
 }
 
 /**
@@ -22,6 +26,8 @@ export class Input implements InputSource {
   private laneTarget: number | null = null;
   private confirm = false;
   private ability = false;
+  private pause = false;
+  private help = false;
   private disposers: Array<() => void> = [];
   private canvas: HTMLCanvasElement;
 
@@ -54,6 +60,15 @@ export class Input implements InputSource {
           this.confirm = true;
           e.preventDefault();
           break;
+        case 'Escape':
+        case 'p':
+        case 'P':
+          this.pause = true;
+          break;
+        case 'h':
+        case 'H':
+          this.help = true;
+          break;
         default:
           return;
       }
@@ -68,6 +83,10 @@ export class Input implements InputSource {
       const fx = (e.clientX - rect.left) / rect.width;
       const fy = (e.clientY - rect.top) / rect.height;
 
+      if (fx > PAUSE_BUTTON.xMin && fy < PAUSE_BUTTON.yMax) {
+        this.pause = true;
+        return;
+      }
       if (fx > ABILITY_BUTTON.xMin && fy > ABILITY_BUTTON.yMin) {
         this.ability = true;
         return;
@@ -100,6 +119,18 @@ export class Input implements InputSource {
   consumeAbility(): boolean {
     const value = this.ability;
     this.ability = false;
+    return value;
+  }
+
+  consumePause(): boolean {
+    const value = this.pause;
+    this.pause = false;
+    return value;
+  }
+
+  consumeHelp(): boolean {
+    const value = this.help;
+    this.help = false;
     return value;
   }
 

@@ -89,6 +89,8 @@ export type WeaponKind = 'blaster' | 'scatter' | 'railgun';
 export interface WeaponDef {
   kind: WeaponKind;
   name: string;
+  /** One-line explanation for the help legend. */
+  desc: string;
   color: string;
   /** Seconds between shots at base fire rate. */
   baseCooldown: number;
@@ -124,6 +126,8 @@ export type PowerUpKind =
 export interface PowerUpDef {
   kind: PowerUpKind;
   label: string;
+  /** One-line explanation for the help legend. */
+  desc: string;
   /**
    * 'buff' effects persist until a hazard strips them; 'instant' effects
    * (heal, shield) apply the moment they are collected.
