@@ -932,8 +932,9 @@ export class Game {
 
   private decayFx(dt: number) {
     this.shake = Math.max(0, this.shake - FX.shakeDecay * dt);
-    if (this.phase !== 'playing') {
-      // Keep explosions and text alive on the game-over screen.
+    if (this.phase === 'gameover') {
+      // Keep explosions and text alive on the game-over screen only; the
+      // upgrade-choice screen stays fully frozen in the background.
       this.moveEntities(dt);
     }
   }

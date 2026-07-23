@@ -118,6 +118,29 @@ describe('roguelite upgrade choice', () => {
     expect(keys.size).toBe(game.offers.length);
   });
 
+  it('freezes the world while an upgrade is being chosen', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.spawner.phaseElapsed = 999;
+    game.update(1 / 60); // enter the choice screen
+    expect(game.phase).toBe('choosing');
+
+    // Place entities and confirm nothing moves while frozen.
+    const enemy = makeBoss({ kind: 'grunt', y: 100, speed: 120, radius: 20, hp: 3, maxHp: 3 });
+    game.enemies = [enemy];
+    game.projectiles = [
+      { id: 1, lane: 0, x: 140, y: 400, radius: 6, damage: 1, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+    ];
+    const enemyY = enemy.y;
+    const projectileY = game.projectiles[0].y;
+
+    for (let i = 0; i < 60; i += 1) game.update(1 / 60);
+
+    expect(game.phase).toBe('choosing');
+    expect(game.enemies[0].y).toBe(enemyY);
+    expect(game.projectiles[0].y).toBe(projectileY);
+  });
+
   it('picking an offer applies it and resumes play', () => {
     const input = new ScriptedInput();
     const game = new Game(input);
