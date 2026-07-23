@@ -191,4 +191,4 @@ export interface FloatingText {
   color: string;
 }
 
-export type Phase = 'title' | 'playing' | 'choosing' | 'gameover';
+export type Phase = 'title' | 'playing' | 'gameover';

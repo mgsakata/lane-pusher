@@ -332,13 +332,6 @@ export const ABILITY = {
  */
 export const ABILITY_BUTTON = { xMin: 0.78, yMin: 0.9 };
 
-// -------------------------------------------------------------- upgrades
-
-export const UPGRADE = {
-  /** Options presented after each wave. */
-  choices: 3,
-};
-
 // ---------------------------------------------------------------- scoring
 
 export const SCORE = {

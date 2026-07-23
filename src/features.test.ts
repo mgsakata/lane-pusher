@@ -34,13 +34,7 @@ function makeBoss(over: Partial<Enemy> = {}): Enemy {
 
 /** Advances a fresh game a few seconds, auto-skipping upgrade screens. */
 function play(game: Game, steps: number) {
-  for (let i = 0; i < steps; i += 1) {
-    game.update(1 / 60);
-    if (game.phase === 'choosing') {
-      game.offers = [];
-      game.phase = 'playing';
-    }
-  }
+  for (let i = 0; i < steps; i += 1) game.update(1 / 60);
 }
 
 describe('event emitter', () => {
@@ -104,58 +98,6 @@ describe('active ability', () => {
   });
 });
 
-describe('roguelite upgrade choice', () => {
-  it('offers a distinct choice of upgrades after a wave clears', () => {
-    const game = new Game(new ScriptedInput());
-    game.start();
-    game.spawner.phaseElapsed = 999; // force the active phase to end
-    game.update(1 / 60);
-
-    expect(game.phase).toBe('choosing');
-    expect(game.offers.length).toBeGreaterThan(0);
-    expect(game.offers.length).toBeLessThanOrEqual(3);
-    const keys = new Set(game.offers.map((o) => o.key));
-    expect(keys.size).toBe(game.offers.length);
-  });
-
-  it('freezes the world while an upgrade is being chosen', () => {
-    const game = new Game(new ScriptedInput());
-    game.start();
-    game.spawner.phaseElapsed = 999;
-    game.update(1 / 60); // enter the choice screen
-    expect(game.phase).toBe('choosing');
-
-    // Place entities and confirm nothing moves while frozen.
-    const enemy = makeBoss({ kind: 'grunt', y: 100, speed: 120, radius: 20, hp: 3, maxHp: 3 });
-    game.enemies = [enemy];
-    game.projectiles = [
-      { id: 1, lane: 0, x: 140, y: 400, radius: 6, damage: 1, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
-    ];
-    const enemyY = enemy.y;
-    const projectileY = game.projectiles[0].y;
-
-    for (let i = 0; i < 60; i += 1) game.update(1 / 60);
-
-    expect(game.phase).toBe('choosing');
-    expect(game.enemies[0].y).toBe(enemyY);
-    expect(game.projectiles[0].y).toBe(projectileY);
-  });
-
-  it('picking an offer applies it and resumes play', () => {
-    const input = new ScriptedInput();
-    const game = new Game(input);
-    game.start();
-    game.spawner.phaseElapsed = 999;
-    game.update(1 / 60);
-    expect(game.phase).toBe('choosing');
-
-    input.setPointer(0.5); // tap the middle card
-    game.update(1 / 60);
-    expect(game.phase).toBe('playing');
-    expect(game.offers.length).toBe(0);
-  });
-});
-
 describe('boss fights', () => {
   it('a boss holds at its line instead of crossing the goal', () => {
     const game = new Game(new ScriptedInput());
@@ -185,7 +127,6 @@ describe('boss fights', () => {
 
     game.update(1 / 60);
     expect(game.spawner.phase).toBe('active');
-    expect(game.phase).not.toBe('choosing');
   });
 
   it('destroying the boss clears the gate and heals the player', () => {

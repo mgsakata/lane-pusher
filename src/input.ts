@@ -11,10 +11,6 @@ export interface InputSource {
   consumeConfirm(): boolean;
   /** Whether the active ability was triggered since the last call. */
   consumeAbility(): boolean;
-  /** A -1/+1 selection nudge (arrow keys) for menus, or 0. */
-  consumeSelectDelta(): number;
-  /** Horizontal tap position (0..1) since the last call, for picking options. */
-  consumePointerFraction(): number | null;
 }
 
 /**
@@ -26,8 +22,6 @@ export class Input implements InputSource {
   private laneTarget: number | null = null;
   private confirm = false;
   private ability = false;
-  private selectDelta = 0;
-  private pointerFraction: number | null = null;
   private disposers: Array<() => void> = [];
   private canvas: HTMLCanvasElement;
 
@@ -44,13 +38,11 @@ export class Input implements InputSource {
         case 'a':
         case 'A':
           this.laneTarget = 0;
-          this.selectDelta = -1;
           break;
         case 'ArrowRight':
         case 'd':
         case 'D':
           this.laneTarget = LANE_COUNT - 1;
-          this.selectDelta = 1;
           break;
         case ' ':
           // Space starts a run on menus and fires the ability during play.
@@ -75,7 +67,6 @@ export class Input implements InputSource {
       const rect = this.canvas.getBoundingClientRect();
       const fx = (e.clientX - rect.left) / rect.width;
       const fy = (e.clientY - rect.top) / rect.height;
-      this.pointerFraction = fx;
 
       if (fx > ABILITY_BUTTON.xMin && fy > ABILITY_BUTTON.yMin) {
         this.ability = true;
@@ -109,18 +100,6 @@ export class Input implements InputSource {
   consumeAbility(): boolean {
     const value = this.ability;
     this.ability = false;
-    return value;
-  }
-
-  consumeSelectDelta(): number {
-    const value = this.selectDelta;
-    this.selectDelta = 0;
-    return value;
-  }
-
-  consumePointerFraction(): number | null {
-    const value = this.pointerFraction;
-    this.pointerFraction = null;
     return value;
   }
 

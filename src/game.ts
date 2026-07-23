@@ -14,7 +14,6 @@ import {
   SPAWN_Y,
   STARTING_WEAPON,
   UNIVERSAL_DROPS,
-  UPGRADE,
   WAVE,
   WEAPON_DEFS,
   WEAVE,
@@ -40,28 +39,12 @@ import type {
   Phase,
   Pickup,
   PickupContent,
-  PowerUpKind,
   Projectile,
   WeaponKind,
 } from './types';
 import { clamp, randRange, randInt, pickWeighted } from './util';
 
 const BEST_SCORE_KEY = 'lane-pusher.bestScore';
-
-/** Universal buffs that can appear as level-up upgrade offers. */
-const UNIVERSAL_BUFFS: PowerUpKind[] = UNIVERSAL_DROPS.filter(
-  (kind) => defFor(kind).type === 'buff',
-);
-
-/** One selectable option on the between-wave upgrade screen. */
-interface UpgradeOffer {
-  key: string;
-  weight: number;
-  label: string;
-  desc: string;
-  color: string;
-  apply: () => void;
-}
 
 export interface Player {
   lane: LaneIndex;
@@ -97,11 +80,6 @@ export class Game {
   /** Active-ability charge, filled by kills; ready at ABILITY.maxCharge. */
   abilityCharge = 0;
 
-  /** Upgrade options shown on the between-wave choice screen. */
-  offers: UpgradeOffer[] = [];
-  /** Keyboard-highlighted offer index. */
-  offerIndex = 0;
-
   score = 0;
   bestScore = readBestScore();
   kills = 0;
@@ -136,8 +114,6 @@ export class Game {
     this.spawner.reset();
     this.weapon = STARTING_WEAPON;
     this.abilityCharge = 0;
-    this.offers = [];
-    this.offerIndex = 0;
     this.score = 0;
     this.kills = 0;
     this.killStreak = 0;
@@ -156,13 +132,6 @@ export class Game {
     const laneTarget = this.input.consumeLaneTarget();
     const confirm = this.input.consumeConfirm();
     const ability = this.input.consumeAbility();
-    const selectDelta = this.input.consumeSelectDelta();
-    const pointer = this.input.consumePointerFraction();
-
-    if (this.phase === 'choosing') {
-      this.updateChoosing(dt, confirm, selectDelta, pointer);
-      return;
-    }
 
     if (this.phase !== 'playing') {
       // A tap sets a lane and confirms at once, so either signal starts a run.
@@ -273,7 +242,6 @@ export class Game {
         COLORS.player,
       );
       this.events.emit('waveClear', { wave: tick.waveCleared });
-      this.offerUpgrades();
     }
 
     if (tick.waveStarted !== null) {
@@ -323,136 +291,6 @@ export class Game {
     this.enemies = this.enemies.filter((e) => e.hp > 0 || e.stripsPowerups);
     this.addFloater(this.player.x, PLAYER.y - 40, `${ABILITY.name}!`, ABILITY.color);
     this.events.emit('ability', {});
-  }
-
-  // ------------------------------------------------------ upgrade choices
-
-  /** Pauses into the choice screen with a fresh set of upgrade offers. */
-  private offerUpgrades() {
-    this.offers = this.generateOffers();
-    this.offerIndex = 0;
-    if (this.offers.length > 0) {
-      this.phase = 'choosing';
-      this.events.emit('upgradeOffered', {});
-    }
-  }
-
-  private generateOffers(): UpgradeOffer[] {
-    const pool: UpgradeOffer[] = [];
-
-    // Switch to a weapon you are not currently holding.
-    for (const def of Object.values(WEAPON_DEFS)) {
-      if (def.kind === this.weapon) continue;
-      pool.push({
-        key: `weapon:${def.kind}`,
-        weight: 4,
-        label: def.name,
-        desc: 'Switch weapon',
-        color: def.color,
-        apply: () => {
-          this.weapon = def.kind;
-          this.events.emit('weaponSwitch', { weapon: def.kind });
-        },
-      });
-    }
-
-    // Level up a buff for the current weapon or a universal one.
-    const buffKinds = [...WEAPON_DEFS[this.weapon].buffs, ...UNIVERSAL_BUFFS];
-    for (const kind of buffKinds) {
-      const def = defFor(kind);
-      const maxLevel = def.maxLevel ?? 1;
-      if (this.effects.level(kind) >= maxLevel) continue;
-      pool.push({
-        key: `buff:${kind}`,
-        weight: 6,
-        label: def.label,
-        desc: maxLevel > 1 ? `Upgrade Lv${this.effects.level(kind) + 1}` : 'New buff',
-        color: def.color,
-        apply: () => {
-          this.effects.apply(kind);
-          this.events.emit('buffUp', { kind, level: this.effects.level(kind) });
-        },
-      });
-    }
-
-    pool.push({
-      key: 'maxhp',
-      weight: 5,
-      label: '+1 MAX HP',
-      desc: 'Raise max health',
-      color: COLORS.health,
-      apply: () => {
-        this.player.maxHealth += 1;
-        this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
-      },
-    });
-    if (this.player.health < this.player.maxHealth) {
-      pool.push({
-        key: 'heal',
-        weight: 5,
-        label: 'REPAIR',
-        desc: 'Refill health',
-        color: '#3ddc97',
-        apply: () => {
-          this.player.health = this.player.maxHealth;
-        },
-      });
-    }
-    pool.push({
-      key: 'shield',
-      weight: 4,
-      label: '+2 SHIELD',
-      desc: 'Absorb 2 hits',
-      color: COLORS.shield,
-      apply: () => {
-        this.player.shieldCharges += 2;
-      },
-    });
-
-    // Draw distinct offers without replacement.
-    const chosen: UpgradeOffer[] = [];
-    const remaining = pool.slice();
-    while (chosen.length < UPGRADE.choices && remaining.length > 0) {
-      const pick = pickWeighted(remaining, (o) => o.weight);
-      if (!pick) break;
-      chosen.push(pick);
-      remaining.splice(remaining.indexOf(pick), 1);
-    }
-    return chosen;
-  }
-
-  private updateChoosing(
-    dt: number,
-    confirm: boolean,
-    selectDelta: number,
-    pointer: number | null,
-  ) {
-    if (pointer !== null) {
-      const idx = clamp(
-        Math.floor(pointer * this.offers.length),
-        0,
-        this.offers.length - 1,
-      );
-      this.pickOffer(idx);
-    } else if (selectDelta !== 0) {
-      this.offerIndex = clamp(
-        this.offerIndex + selectDelta,
-        0,
-        this.offers.length - 1,
-      );
-    } else if (confirm) {
-      this.pickOffer(this.offerIndex);
-    }
-    this.decayFx(dt);
-  }
-
-  private pickOffer(index: number) {
-    const offer = this.offers[index];
-    if (!offer) return;
-    offer.apply();
-    this.offers = [];
-    this.phase = 'playing';
-    this.events.emit('upgradePicked', {});
   }
 
   private addEnemy(spawn: EnemySpawn, atY = SPAWN_Y) {

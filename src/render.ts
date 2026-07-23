@@ -30,9 +30,7 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   for (const enemy of game.enemies) drawEnemy(ctx, enemy);
   drawProjectiles(ctx, game);
   drawEnemyShots(ctx, game);
-  if (game.phase === 'playing' || game.phase === 'choosing') {
-    drawPlayer(ctx, game);
-  }
+  if (game.phase === 'playing') drawPlayer(ctx, game);
   drawParticles(ctx, game);
   drawFloaters(ctx, game);
 
@@ -42,7 +40,6 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   drawBossBar(ctx, game);
   if (game.phase === 'title') drawTitle(ctx, game);
   if (game.phase === 'gameover') drawGameOver(ctx, game);
-  if (game.phase === 'choosing') drawChoice(ctx, game);
 }
 
 // ------------------------------------------------------------------- field
@@ -378,9 +375,7 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
 
   drawHealth(ctx, game);
   drawEffectBar(ctx, game);
-  if (game.phase === 'playing' || game.phase === 'choosing') {
-    drawAbility(ctx, game);
-  }
+  if (game.phase === 'playing') drawAbility(ctx, game);
 }
 
 function drawBossBar(ctx: CanvasRenderingContext2D, game: Game) {
@@ -558,63 +553,6 @@ function drawGameOver(ctx: CanvasRenderingContext2D, game: Game) {
     isBest ? COLORS.player : COLORS.textDim,
   );
   centered(ctx, 'PRESS SPACE OR TAP TO RETRY', HEIGHT / 2 + 90, 'bold 16px', COLORS.text);
-}
-
-function drawChoice(ctx: CanvasRenderingContext2D, game: Game) {
-  dimScreen(ctx);
-  centered(ctx, 'CHOOSE AN UPGRADE', HEIGHT * 0.28, 'bold 24px', COLORS.text);
-
-  const n = game.offers.length;
-  const cardW = 132;
-  const cardH = 156;
-  const gap = 12;
-  const totalW = n * cardW + (n - 1) * gap;
-  let x = (WIDTH - totalW) / 2;
-  const y = HEIGHT / 2 - cardH / 2;
-
-  game.offers.forEach((offer, i) => {
-    const selected = i === game.offerIndex;
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(x, y, cardW, cardH, 12);
-    ctx.fillStyle = 'rgba(20,26,38,0.96)';
-    ctx.fill();
-    ctx.strokeStyle = offer.color;
-    ctx.lineWidth = selected ? 4 : 2;
-    if (selected) {
-      ctx.shadowColor = offer.color;
-      ctx.shadowBlur = 18;
-    }
-    ctx.stroke();
-    ctx.restore();
-
-    // Color swatch, label, and description stacked in the card.
-    ctx.fillStyle = offer.color;
-    ctx.beginPath();
-    ctx.arc(x + cardW / 2, y + 40, 16, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = offer.color;
-    ctx.font = 'bold 17px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(offer.label, x + cardW / 2, y + cardH * 0.6);
-
-    ctx.fillStyle = COLORS.textDim;
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(offer.desc, x + cardW / 2, y + cardH * 0.78);
-
-    x += cardW + gap;
-  });
-
-  centered(
-    ctx,
-    'TAP A CARD   ·   ←  →  then SPACE',
-    HEIGHT * 0.72,
-    '13px',
-    COLORS.textDim,
-  );
 }
 
 function dimScreen(ctx: CanvasRenderingContext2D) {

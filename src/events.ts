@@ -26,8 +26,6 @@ export interface GameEventMap {
   enemyFire: { lane: LaneIndex };
   waveStart: { wave: number; boss: boolean };
   waveClear: { wave: number };
-  upgradeOffered: Record<string, never>;
-  upgradePicked: Record<string, never>;
   gameOver: { score: number; wave: number };
 }
 
