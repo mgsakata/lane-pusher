@@ -94,6 +94,11 @@ export class Game {
 
   /** Current screen-shake magnitude in pixels. */
   shake = 0;
+  /** Full-screen flash: strength 0..1 and its colour, for impact feedback. */
+  flashAmount = 0;
+  flashColor = '#ffffff';
+  /** Brief freeze on heavy impacts, for game feel. */
+  hitStop = 0;
 
   private nextId = 1;
   private input: InputSource;
@@ -124,10 +129,17 @@ export class Game {
     this.killStreak = 0;
     this.elapsed = 0;
     this.shake = 0;
+    this.flashAmount = 0;
+    this.hitStop = 0;
     this.paused = false;
     this.showLegend = false;
     this.phase = 'playing';
     this.events.emit('gameStart', {});
+  }
+
+  private flash(color: string, amount: number) {
+    this.flashColor = color;
+    this.flashAmount = Math.max(this.flashAmount, amount);
   }
 
   get abilityReady(): boolean {
@@ -160,6 +172,13 @@ export class Game {
     if (menuToggle) this.paused = !this.paused;
     else if (this.paused && confirm) this.paused = false;
     if (this.paused) return;
+
+    // Hit-stop: a heavy impact briefly freezes the action for punch.
+    if (this.hitStop > 0) {
+      this.hitStop = Math.max(0, this.hitStop - dt);
+      this.decayFx(dt);
+      return;
+    }
 
     this.elapsed += dt;
     if (laneTarget !== null) {
@@ -310,6 +329,7 @@ export class Game {
       }
     }
     this.enemies = this.enemies.filter((e) => e.hp > 0 || e.stripsPowerups);
+    this.flash(ABILITY.color, 0.4);
     this.addFloater(this.player.x, PLAYER.y - 40, `${ABILITY.name}!`, ABILITY.color);
     this.events.emit('ability', {});
   }
@@ -604,6 +624,8 @@ export class Game {
     this.spawner.bossPending = false;
     this.enemyShots = [];
     this.shake = FX.shakeOnHit * 1.6;
+    this.flash(boss.color, 0.5);
+    this.hitStop = Math.max(this.hitStop, 0.12);
     this.burst(boss.x, boss.y, boss.color, 40, 360);
     this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
     this.addFloater(laneCenterX(0.5), BOSS.holdY, 'BOSS DOWN', boss.color);
@@ -694,6 +716,7 @@ export class Game {
     // Hazards survive; every regular enemy and all incoming shots are cleared.
     this.enemies = this.enemies.filter((e) => e.stripsPowerups);
     this.enemyShots = [];
+    this.flash('#ffffff', 0.6);
     this.events.emit('bomb', {});
   }
 
@@ -768,6 +791,8 @@ export class Game {
     }
 
     this.player.health -= amount;
+    this.flash(COLORS.health, 0.5);
+    this.hitStop = Math.max(this.hitStop, 0.05);
     this.addFloater(this.player.x, PLAYER.y - 34, `-${amount}`, COLORS.health);
     this.events.emit('playerHit', { amount });
 
@@ -791,6 +816,7 @@ export class Game {
 
   private decayFx(dt: number) {
     this.shake = Math.max(0, this.shake - FX.shakeDecay * dt);
+    this.flashAmount = Math.max(0, this.flashAmount - dt * 3.5);
     if (this.phase === 'gameover') {
       // Keep explosions and text alive on the game-over screen only; the
       // upgrade-choice screen stays fully frozen in the background.

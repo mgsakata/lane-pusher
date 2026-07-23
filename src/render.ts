@@ -11,20 +11,31 @@ import {
   POWERUP_DEFS,
   WEAPON_DEFS,
   WIDTH,
+  laneCenterX,
 } from './config';
 import type { Game } from './game';
 import type { Enemy, Pickup } from './types';
+import { clamp } from './util';
+
+/**
+ * A fixed parallax starfield, generated once. Stars scroll down at a rate set
+ * by their depth `z`, wrapping around the field.
+ */
+const STARS = Array.from({ length: 80 }, () => ({
+  x: Math.random() * WIDTH,
+  y: Math.random() * HEIGHT,
+  z: Math.random() * 0.7 + 0.3,
+  r: Math.random() * 1.4 + 0.4,
+}));
 
 export function render(
   ctx: CanvasRenderingContext2D,
   game: Game,
   muted = false,
 ) {
+  drawBackground(ctx, game);
+
   ctx.save();
-
-  ctx.fillStyle = COLORS.bg;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
   if (game.shake > 0) {
     const s = game.shake;
     ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
@@ -35,11 +46,14 @@ export function render(
   for (const enemy of game.enemies) drawEnemy(ctx, enemy);
   drawProjectiles(ctx, game);
   drawEnemyShots(ctx, game);
-  if (game.phase === 'playing') drawPlayer(ctx, game);
+  if (game.phase === 'playing' || game.paused) drawPlayer(ctx, game);
   drawParticles(ctx, game);
   drawFloaters(ctx, game);
 
   ctx.restore();
+
+  drawVignette(ctx);
+  drawFlash(ctx, game);
 
   drawHud(ctx, game);
   drawMuteButton(ctx, muted);
@@ -47,6 +61,52 @@ export function render(
   if (game.phase === 'title' && !game.showLegend) drawTitle(ctx, game);
   if (game.phase === 'gameover' && !game.showLegend) drawGameOver(ctx, game);
   if (game.paused || game.showLegend) drawLegend(ctx, game.paused);
+}
+
+// -------------------------------------------------------------- atmosphere
+
+function drawBackground(ctx: CanvasRenderingContext2D, game: Game) {
+  const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  grad.addColorStop(0, '#0b1120');
+  grad.addColorStop(1, '#05070d');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const s of STARS) {
+    const y = (s.y + game.elapsed * 34 * s.z) % HEIGHT;
+    ctx.fillStyle = `rgba(130,180,255,${s.z * 0.5})`;
+    ctx.beginPath();
+    ctx.arc(s.x, y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawVignette(ctx: CanvasRenderingContext2D) {
+  const g = ctx.createRadialGradient(
+    WIDTH / 2,
+    HEIGHT / 2,
+    HEIGHT * 0.34,
+    WIDTH / 2,
+    HEIGHT / 2,
+    HEIGHT * 0.78,
+  );
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+}
+
+function drawFlash(ctx: CanvasRenderingContext2D, game: Game) {
+  if (game.flashAmount <= 0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = Math.min(0.7, game.flashAmount);
+  ctx.fillStyle = game.flashColor;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.restore();
 }
 
 // ------------------------------------------------------------------- field
@@ -78,7 +138,10 @@ function drawField(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.stroke();
   }
 
+  ctx.save();
   ctx.strokeStyle = COLORS.goalLine;
+  ctx.shadowColor = COLORS.player;
+  ctx.shadowBlur = 8;
   ctx.lineWidth = 3;
   ctx.setLineDash([12, 10]);
   ctx.beginPath();
@@ -86,28 +149,60 @@ function drawField(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.lineTo(WIDTH - FIELD_MARGIN, GOAL_LINE_Y);
   ctx.stroke();
   ctx.setLineDash([]);
+  ctx.restore();
 }
 
 // ------------------------------------------------------------------ actors
 
 function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
-  const { x, invuln, shieldCharges } = game.player;
+  const { x, lane, invuln, shieldCharges } = game.player;
   const y = PLAYER.y;
+  const r = PLAYER.radius;
 
   // Blink while invulnerable so the state is readable at a glance.
   if (invuln > 0 && Math.floor(invuln * 20) % 2 === 0) return;
 
+  // Bank toward the lane the ship is sliding into.
+  const bank = clamp((laneCenterX(lane) - x) / 60, -0.5, 0.5);
+  const color = invuln > 0 ? COLORS.playerInvuln : COLORS.player;
+
   ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(bank);
+
+  // Thruster flame flickers below the ship (additive glow).
+  const flame = r * (0.9 + Math.sin(game.elapsed * 40) * 0.25);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const fg = ctx.createLinearGradient(0, r * 0.4, 0, r * 0.4 + flame);
+  fg.addColorStop(0, 'rgba(120,230,255,0.9)');
+  fg.addColorStop(1, 'rgba(120,230,255,0)');
+  ctx.fillStyle = fg;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.34, r * 0.5);
+  ctx.lineTo(0, r * 0.5 + flame);
+  ctx.lineTo(r * 0.34, r * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // Hull.
   ctx.shadowColor = COLORS.player;
   ctx.shadowBlur = 18;
-  ctx.fillStyle = invuln > 0 ? COLORS.playerInvuln : COLORS.player;
-
+  ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(x, y - PLAYER.radius);
-  ctx.lineTo(x + PLAYER.radius * 0.85, y + PLAYER.radius * 0.8);
-  ctx.lineTo(x, y + PLAYER.radius * 0.4);
-  ctx.lineTo(x - PLAYER.radius * 0.85, y + PLAYER.radius * 0.8);
+  ctx.moveTo(0, -r);
+  ctx.lineTo(r * 0.85, r * 0.8);
+  ctx.lineTo(0, r * 0.4);
+  ctx.lineTo(-r * 0.85, r * 0.8);
   ctx.closePath();
+  ctx.fill();
+
+  // Cockpit highlight.
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath();
+  ctx.arc(0, -r * 0.1, r * 0.16, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
@@ -298,20 +393,30 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
 
 function drawProjectiles(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
   ctx.shadowBlur = 12;
   for (const p of game.projectiles) {
-    // Each weapon tints its shots; a piercing rail slug draws as a long streak.
+    // A fading trail behind each shot; a piercing rail slug streaks longer.
+    const trail = (p.pierce ? 46 : 22) + p.radius;
+    const grad = ctx.createLinearGradient(p.x, p.y, p.x, p.y + trail);
+    grad.addColorStop(0, p.color);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(p.x - p.radius * 0.5, p.y, p.radius, trail);
+
+    // Bright head.
     ctx.fillStyle = p.color;
     ctx.shadowColor = p.color;
-    const stretch = p.pierce ? 3 : 1.8;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, p.radius * 0.7, p.radius * stretch, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x, p.y, p.radius * 0.75, p.radius * 1.4, 0, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
 }
 
 function drawParticles(ctx: CanvasRenderingContext2D, game: Game) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
   for (const p of game.particles) {
     ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
     ctx.fillStyle = p.color;
@@ -319,7 +424,7 @@ function drawParticles(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawFloaters(ctx: CanvasRenderingContext2D, game: Game) {
