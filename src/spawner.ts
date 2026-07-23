@@ -4,8 +4,7 @@ import {
   waveSpeedMultiplier,
 } from './balance';
 import { ENEMY_DEFS, LANE_COUNT, POWERUP, WAVE } from './config';
-import { randomPowerUpDef } from './powerups';
-import type { EnemyDef, LaneIndex, PowerUpDef } from './types';
+import type { EnemyDef, LaneIndex } from './types';
 import { pickWeighted, randInt, randRange } from './util';
 
 export interface EnemySpawn {
@@ -15,14 +14,10 @@ export interface EnemySpawn {
   speedMultiplier: number;
 }
 
-export interface PickupSpawn {
-  def: PowerUpDef;
-  lane: LaneIndex;
-}
-
 export interface SpawnTick {
   enemies: EnemySpawn[];
-  pickups: PickupSpawn[];
+  /** Lanes in which to drop a pickup; the game chooses each pickup's content. */
+  pickupLanes: LaneIndex[];
   /** Set on the frame a wave's active phase ends. */
   waveCleared: number | null;
   /** Set on the frame a new wave's active phase begins. */
@@ -96,7 +91,7 @@ export class Spawner {
   update(dt: number): SpawnTick {
     const out: SpawnTick = {
       enemies: [],
-      pickups: [],
+      pickupLanes: [],
       waveCleared: null,
       waveStarted: null,
     };
@@ -137,10 +132,7 @@ export class Spawner {
     if (this.pickupTimer <= 0) {
       this.pickupTimer =
         POWERUP.interval + randRange(-POWERUP.intervalJitter, POWERUP.intervalJitter);
-      out.pickups.push({
-        def: randomPowerUpDef(),
-        lane: randInt(0, LANE_COUNT) as LaneIndex,
-      });
+      out.pickupLanes.push(randInt(0, LANE_COUNT) as LaneIndex);
     }
 
     return out;

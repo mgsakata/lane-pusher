@@ -1,6 +1,5 @@
 import { POWERUP, POWERUP_DEFS } from './config';
 import type { PowerUpDef, PowerUpKind } from './types';
-import { pickWeighted } from './util';
 
 /** What an instantly-consumed pickup asks the game to do. */
 export interface InstantEffect {
@@ -47,6 +46,13 @@ export class Effects {
     return this.levels.get(kind) ?? 0;
   }
 
+  /** A plain object of held buff levels, for the balance math. */
+  levelMap(): Partial<Record<PowerUpKind, number>> {
+    const out: Partial<Record<PowerUpKind, number>> = {};
+    for (const [kind, level] of this.levels) out[kind] = level;
+    return out;
+  }
+
   isActive(kind: PowerUpKind): boolean {
     return (this.levels.get(kind) ?? 0) > 0;
   }
@@ -74,11 +80,5 @@ export class Effects {
 export function defFor(kind: PowerUpKind): PowerUpDef {
   const def = POWERUP_DEFS.find((d) => d.kind === kind);
   if (!def) throw new Error(`Unknown power-up: ${kind}`);
-  return def;
-}
-
-export function randomPowerUpDef(): PowerUpDef {
-  const def = pickWeighted(POWERUP_DEFS, (d) => d.weight);
-  if (!def) throw new Error('No power-ups are configured with a weight');
   return def;
 }

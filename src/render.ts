@@ -6,6 +6,7 @@ import {
   LANE_COUNT,
   LANE_WIDTH,
   PLAYER,
+  WEAPON_DEFS,
   WIDTH,
 } from './config';
 import type { Game } from './game';
@@ -108,24 +109,6 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.arc(x, y, PLAYER.radius + 8 + i * 6, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
-  }
-
-  // One DRONE companion per level hovers at the player's sides and bobs.
-  const droneLevel = game.effects.level('drone');
-  if (droneLevel > 0) {
-    ctx.save();
-    ctx.fillStyle = '#2ec4b6';
-    ctx.shadowColor = '#2ec4b6';
-    ctx.shadowBlur = 12;
-    for (let i = 0; i < droneLevel; i += 1) {
-      const side = i % 2 === 0 ? 1 : -1;
-      const rank = Math.floor(i / 2) + 1;
-      const bob = Math.sin(game.elapsed * 8 + i) * 3;
-      ctx.beginPath();
-      ctx.arc(x + side * 26 * rank, y + 6 + bob, 6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
   }
 }
 
@@ -268,12 +251,14 @@ function drawHealthBar(
 }
 
 function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
+  // Weapon pickups are round badges; buff/instant pickups are rotating squares.
+  const isWeapon = pickup.content.type === 'weapon';
   const pulse = 1 + Math.sin(pickup.age * 8) * 0.08;
   const r = pickup.radius * pulse;
 
   ctx.save();
   ctx.translate(pickup.x, pickup.y);
-  ctx.rotate(Math.sin(pickup.age * 2) * 0.2);
+  if (!isWeapon) ctx.rotate(Math.sin(pickup.age * 2) * 0.2);
 
   ctx.shadowColor = pickup.color;
   ctx.shadowBlur = 16;
@@ -281,13 +266,21 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
   ctx.fillStyle = 'rgba(13,17,23,0.85)';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.rect(-r, -r, r * 2, r * 2);
+  if (isWeapon) ctx.arc(0, 0, r, 0, Math.PI * 2);
+  else ctx.rect(-r, -r, r * 2, r * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
 
+  // Shrink the label until it fits inside the badge.
+  const maxWidth = pickup.radius * 2 - 4;
+  let fontSize = 11;
+  ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+  while (ctx.measureText(pickup.label).width > maxWidth && fontSize > 6) {
+    fontSize -= 1;
+    ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+  }
   ctx.fillStyle = pickup.color;
-  ctx.font = 'bold 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(pickup.label, pickup.x, pickup.y);
@@ -295,12 +288,14 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
 
 function drawProjectiles(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.save();
-  ctx.fillStyle = COLORS.projectile;
-  ctx.shadowColor = COLORS.projectile;
   ctx.shadowBlur = 12;
   for (const p of game.projectiles) {
+    // Each weapon tints its shots; a piercing rail slug draws as a long streak.
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    const stretch = p.pierce ? 3 : 1.8;
     ctx.beginPath();
-    ctx.ellipse(p.x, p.y, p.radius * 0.7, p.radius * 1.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x, p.y, p.radius * 0.7, p.radius * stretch, 0, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -367,6 +362,13 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.fillText(`x${multiplier}`, WIDTH / 2, 16);
   }
+
+  // Active weapon, top-centre in its own colour.
+  const weapon = WEAPON_DEFS[game.weapon];
+  ctx.textAlign = 'center';
+  ctx.fillStyle = weapon.color;
+  ctx.font = 'bold 13px system-ui, sans-serif';
+  ctx.fillText(weapon.name, WIDTH / 2, 44);
 
   drawHealth(ctx, game);
   drawEffectBar(ctx, game);

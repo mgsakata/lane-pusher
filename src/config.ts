@@ -1,4 +1,10 @@
-import type { EnemyDef, PowerUpDef } from './types';
+import type {
+  EnemyDef,
+  PowerUpDef,
+  PowerUpKind,
+  WeaponDef,
+  WeaponKind,
+} from './types';
 
 /**
  * Every tunable number lives here. Nothing in this file depends on game state,
@@ -37,13 +43,71 @@ export const PLAYER = {
   invulnTime: 0.9,
 };
 
-export const WEAPON = {
-  /** Seconds between shots at base fire rate. */
-  cooldown: 0.28,
-  damage: 1,
-  projectileSpeed: 900,
-  projectileRadius: 6,
+// ------------------------------------------------------------------ weapons
+
+export const STARTING_WEAPON: WeaponKind = 'blaster';
+
+/**
+ * The player carries one active weapon at a time, switched by weapon pickups.
+ * Each weapon fires differently and is upgraded only by its own `buffs`.
+ */
+export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
+  blaster: {
+    kind: 'blaster',
+    name: 'BLASTER',
+    color: '#8fe9ff',
+    baseCooldown: 0.28,
+    baseDamage: 1,
+    projectileSpeed: 900,
+    projectileRadius: 6,
+    pierce: false,
+    buffs: ['rapid', 'twin'],
+    switchWeight: 5,
+  },
+  scatter: {
+    kind: 'scatter',
+    name: 'SCATTER',
+    color: '#ffd166',
+    baseCooldown: 0.46,
+    baseDamage: 1,
+    projectileSpeed: 820,
+    projectileRadius: 5,
+    pierce: false,
+    buffs: ['spread', 'punch'],
+    switchWeight: 5,
+  },
+  railgun: {
+    kind: 'railgun',
+    name: 'RAILGUN',
+    color: '#c77dff',
+    baseCooldown: 0.72,
+    baseDamage: 3,
+    projectileSpeed: 1300,
+    projectileRadius: 8,
+    pierce: true,
+    buffs: ['charge', 'overload'],
+    switchWeight: 4,
+  },
 };
+
+/** Per-level scaling for weapon buffs. Index by level; index 0 is "not held". */
+export const BUFF_SCALING = {
+  /** Blaster fire-cooldown multiplier. */
+  rapid: [1, 0.62, 0.44, 0.3],
+  /** Railgun fire-cooldown multiplier. */
+  charge: [1, 0.72, 0.56, 0.42],
+  /** Scatter pellets fired per lane (level 0 = 1 pellet). */
+  spread: [1, 2, 3, 4],
+  /** Scatter bonus damage per pellet. */
+  punch: [0, 1, 2, 3],
+  /** Railgun bonus damage. */
+  overload: [0, 2, 4, 6],
+  /** Universal enemy speed multiplier while SLOW is held. */
+  slow: [1, 0.6, 0.45, 0.33],
+};
+
+/** Spacing between scatter pellets within a lane. */
+export const SCATTER_PELLET_SPACING = 16;
 
 // ------------------------------------------------------------------ enemies
 
@@ -198,17 +262,24 @@ export const WAVE = {
 // --------------------------------------------------------------- power-ups
 
 export const POWERUP_DEFS: PowerUpDef[] = [
-  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#4cc9f0', weight: 10, maxLevel: 3 },
-  { kind: 'double', label: 'DUAL', type: 'buff', color: '#f72585', weight: 8 },
-  { kind: 'shield', label: 'SHLD', type: 'instant', color: '#4361ee', weight: 7 },
-  { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
-  { kind: 'pierce', label: 'PIER', type: 'buff', color: '#ffd60a', weight: 7 },
+  // Blaster
+  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#8fe9ff', weight: 10, maxLevel: 3 },
+  { kind: 'twin', label: 'TWIN', type: 'buff', color: '#8fe9ff', weight: 8 },
+  // Scatter
+  { kind: 'spread', label: 'SPREAD', type: 'buff', color: '#ffd166', weight: 10, maxLevel: 3 },
+  { kind: 'punch', label: 'PUNCH', type: 'buff', color: '#ffd166', weight: 8, maxLevel: 3 },
+  // Railgun
+  { kind: 'charge', label: 'CHARGE', type: 'buff', color: '#c77dff', weight: 10, maxLevel: 3 },
+  { kind: 'overload', label: 'OVERLD', type: 'buff', color: '#c77dff', weight: 8, maxLevel: 3 },
+  // Universal
   { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
-  { kind: 'power', label: 'PWR', type: 'buff', color: '#ff9f1c', weight: 8, maxLevel: 3 },
-  { kind: 'drone', label: 'DRONE', type: 'buff', color: '#2ec4b6', weight: 6, maxLevel: 3 },
-  { kind: 'magnet', label: 'MAG', type: 'buff', color: '#c77dff', weight: 5 },
+  { kind: 'shield', label: 'SHLD', type: 'instant', color: '#4361ee', weight: 6 },
+  { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
   { kind: 'bomb', label: 'BOMB', type: 'instant', color: '#ef476f', weight: 4 },
 ];
+
+/** Buffs/instants that can drop regardless of the active weapon. */
+export const UNIVERSAL_DROPS: PowerUpKind[] = ['slow', 'shield', 'heal', 'bomb'];
 
 export const POWERUP = {
   /** Seconds between pickup spawns. */
@@ -221,18 +292,6 @@ export const POWERUP = {
   /** Hits absorbed by a single SHLD pickup. */
   shieldCharges: 2,
   healAmount: 1,
-  /** Horizontal offset of each DRONE companion from the player. */
-  droneOffsetX: 26,
-
-  // Leveled buffs. Index by level; index 0 is the "not held" baseline.
-  /** Fire cooldown multiplier per RAPID level (lower = faster). */
-  rapidCooldownByLevel: [1, 0.6, 0.42, 0.3],
-  /** Bonus weapon damage per PWR level. */
-  powerBonusByLevel: [0, 1, 2, 3],
-  /** Enemy speed multiplier per SLOW level. */
-  slowFactorByLevel: [1, 0.6, 0.45, 0.33],
-  /** Extra shots fired per DRONE level. */
-  droneShotsByLevel: [0, 1, 2, 3],
 };
 
 // ---------------------------------------------------------------- scoring

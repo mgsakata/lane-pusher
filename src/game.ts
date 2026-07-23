@@ -7,22 +7,26 @@ import {
   LANE_COUNT,
   PLAYER,
   POWERUP,
+  SCATTER_PELLET_SPACING,
   SCORE,
   SPAWN_Y,
+  STARTING_WEAPON,
+  UNIVERSAL_DROPS,
   WAVE,
-  WEAPON,
+  WEAPON_DEFS,
   WEAVE,
   laneCenterX,
 } from './config';
 import {
-  droneShots,
   enemySpeedFactor,
-  weaponCooldown,
-  weaponDamage,
+  fireCooldown,
+  lanesFired,
+  pelletsPerLane,
+  projectileDamage,
 } from './balance';
 import type { InputSource } from './input';
-import { Effects } from './powerups';
-import { Spawner, type EnemySpawn, type PickupSpawn } from './spawner';
+import { Effects, defFor } from './powerups';
+import { Spawner, type EnemySpawn } from './spawner';
 import type {
   Enemy,
   EnemyShot,
@@ -31,9 +35,11 @@ import type {
   Particle,
   Phase,
   Pickup,
+  PickupContent,
   Projectile,
+  WeaponKind,
 } from './types';
-import { clamp, randRange, randInt } from './util';
+import { clamp, randRange, randInt, pickWeighted } from './util';
 
 const BEST_SCORE_KEY = 'lane-pusher.bestScore';
 
@@ -61,6 +67,9 @@ export class Game {
 
   effects = new Effects();
   spawner = new Spawner();
+
+  /** The active weapon; switched by weapon pickups. */
+  weapon: WeaponKind = STARTING_WEAPON;
 
   score = 0;
   bestScore = readBestScore();
@@ -94,6 +103,7 @@ export class Game {
     this.floaters = [];
     this.effects.reset();
     this.spawner.reset();
+    this.weapon = STARTING_WEAPON;
     this.score = 0;
     this.kills = 0;
     this.killStreak = 0;
@@ -139,52 +149,56 @@ export class Game {
     this.player.invuln = Math.max(0, this.player.invuln - dt);
   }
 
+  private get levels() {
+    return this.effects.levelMap();
+  }
+
   private fireWeapon(dt: number) {
     this.player.fireCooldown -= dt;
     if (this.player.fireCooldown > 0) return;
 
-    this.player.fireCooldown += weaponCooldown(this.effects.level('rapid'));
+    const def = WEAPON_DEFS[this.weapon];
+    const levels = this.levels;
+    this.player.fireCooldown += fireCooldown(this.weapon, levels);
 
-    const pierce = this.effects.isActive('pierce');
-    const damage = weaponDamage(this.effects.level('power'));
+    const damage = projectileDamage(this.weapon, levels);
+    const pellets = pelletsPerLane(this.weapon, levels);
 
-    this.spawnProjectile(this.player.lane, pierce, damage, this.player.x);
+    // Which lanes this shot covers. The player's lane is always first; scatter
+    // (and TWIN blaster) also cover the other lane.
+    const other = (this.player.lane === 0 ? 1 : 0) as LaneIndex;
+    const lanes: LaneIndex[] =
+      lanesFired(this.weapon, levels) === 2
+        ? [this.player.lane, other]
+        : [this.player.lane];
 
-    if (this.effects.isActive('double')) {
-      // DUAL covers the lane you are not standing in.
-      const other = (this.player.lane === 0 ? 1 : 0) as LaneIndex;
-      this.spawnProjectile(other, pierce, damage, laneCenterX(other));
-    }
-
-    // Each DRONE level adds a companion shot in your lane, fanned out to the
-    // sides so higher levels visibly widen your fire.
-    const drones = droneShots(this.effects.level('drone'));
-    for (let i = 0; i < drones; i += 1) {
-      const side = i % 2 === 0 ? 1 : -1;
-      const rank = Math.floor(i / 2) + 1;
-      this.spawnProjectile(
-        this.player.lane,
-        pierce,
-        damage,
-        this.player.x + side * POWERUP.droneOffsetX * rank,
-      );
+    for (const lane of lanes) {
+      const centerX = lane === this.player.lane ? this.player.x : laneCenterX(lane);
+      // Fan multiple pellets around the lane center; a single shot sits dead center.
+      const start = -((pellets - 1) / 2);
+      for (let i = 0; i < pellets; i += 1) {
+        const offset = (start + i) * SCATTER_PELLET_SPACING;
+        this.spawnProjectile(lane, centerX + offset, damage, def);
+      }
     }
   }
 
   private spawnProjectile(
     lane: LaneIndex,
-    pierce: boolean,
-    damage: number,
     x: number,
+    damage: number,
+    def: (typeof WEAPON_DEFS)[WeaponKind],
   ) {
     this.projectiles.push({
       id: this.nextId++,
       lane,
       x,
       y: PLAYER.y - PLAYER.radius,
-      radius: WEAPON.projectileRadius,
+      radius: def.projectileRadius,
       damage,
-      pierce,
+      color: def.color,
+      speed: def.projectileSpeed,
+      pierce: def.pierce,
       hitIds: new Set(),
     });
   }
@@ -195,7 +209,9 @@ export class Game {
     const tick = this.spawner.update(dt);
 
     for (const spawn of tick.enemies) this.addEnemy(spawn);
-    for (const spawn of tick.pickups) this.addPickup(spawn);
+    for (const lane of tick.pickupLanes) {
+      this.addPickup(this.choosePickupContent(), lane);
+    }
 
     if (tick.waveCleared !== null) {
       const bonus = WAVE.clearBonus * tick.waveCleared;
@@ -249,18 +265,41 @@ export class Game {
     });
   }
 
-  private addPickup(spawn: PickupSpawn) {
+  private addPickup(content: PickupContent, lane: LaneIndex) {
+    const { color, label } = pickupDisplay(content);
     this.pickups.push({
       id: this.nextId++,
-      kind: spawn.def.kind,
-      lane: spawn.lane,
-      x: laneCenterX(spawn.lane),
+      content,
+      lane,
+      x: laneCenterX(lane),
       y: SPAWN_Y,
       radius: POWERUP.radius,
-      color: spawn.def.color,
-      label: spawn.def.label,
+      color,
+      label,
       age: 0,
     });
+  }
+
+  /**
+   * Chooses what a pickup grants: a buff for the current weapon, a universal
+   * buff/instant, or a switch to one of the other weapons.
+   */
+  private choosePickupContent(): PickupContent {
+    const entries: Array<{ content: PickupContent; weight: number }> = [];
+
+    for (const kind of WEAPON_DEFS[this.weapon].buffs) {
+      entries.push({ content: { type: 'power', power: kind }, weight: defFor(kind).weight });
+    }
+    for (const kind of UNIVERSAL_DROPS) {
+      entries.push({ content: { type: 'power', power: kind }, weight: defFor(kind).weight });
+    }
+    for (const def of Object.values(WEAPON_DEFS)) {
+      if (def.kind === this.weapon) continue;
+      entries.push({ content: { type: 'weapon', weapon: def.kind }, weight: def.switchWeight });
+    }
+
+    const chosen = pickWeighted(entries, (e) => e.weight);
+    return chosen ? chosen.content : { type: 'power', power: 'slow' };
   }
 
   // -------------------------------------------------------------- motion
@@ -278,7 +317,7 @@ export class Game {
     }
 
     for (const projectile of this.projectiles) {
-      projectile.y -= WEAPON.projectileSpeed * dt;
+      projectile.y -= projectile.speed * dt;
     }
     this.projectiles = this.projectiles.filter((p) => p.y + p.radius > 0);
 
@@ -447,32 +486,16 @@ export class Game {
 
   private resolvePickups() {
     const collected: number[] = [];
-    // MAG collects from either lane; otherwise you must be in the pickup's lane.
-    const magnet = this.effects.isActive('magnet');
 
     for (const pickup of this.pickups) {
+      if (pickup.lane !== this.player.lane) continue;
       const dy = Math.abs(pickup.y - PLAYER.y);
+      const dx = Math.abs(pickup.x - this.player.x);
       if (dy > pickup.radius + PLAYER.radius) continue;
-
-      if (!magnet) {
-        if (pickup.lane !== this.player.lane) continue;
-        const dx = Math.abs(pickup.x - this.player.x);
-        if (dx > pickup.radius + PLAYER.radius) continue;
-      }
+      if (dx > pickup.radius + PLAYER.radius) continue;
 
       collected.push(pickup.id);
-      const instant = this.effects.apply(pickup.kind);
-      if (instant.heal > 0) {
-        this.player.health = Math.min(
-          PLAYER.maxHealth,
-          this.player.health + instant.heal,
-        );
-      }
-      if (instant.shieldCharges > 0) {
-        this.player.shieldCharges += instant.shieldCharges;
-      }
-      if (instant.bomb) this.detonateBomb();
-
+      this.collectPickup(pickup);
       this.burst(pickup.x, pickup.y, pickup.color, 10, 200);
       this.addFloater(pickup.x, pickup.y - 20, pickup.label, pickup.color);
     }
@@ -481,6 +504,26 @@ export class Game {
       const taken = new Set(collected);
       this.pickups = this.pickups.filter((p) => !taken.has(p.id));
     }
+  }
+
+  private collectPickup(pickup: Pickup) {
+    const { content } = pickup;
+    if (content.type === 'weapon') {
+      this.weapon = content.weapon;
+      return;
+    }
+
+    const instant = this.effects.apply(content.power);
+    if (instant.heal > 0) {
+      this.player.health = Math.min(
+        PLAYER.maxHealth,
+        this.player.health + instant.heal,
+      );
+    }
+    if (instant.shieldCharges > 0) {
+      this.player.shieldCharges += instant.shieldCharges;
+    }
+    if (instant.bomb) this.detonateBomb();
   }
 
   /** BOMB vaporizes every regular enemy on screen; hazards are immune. */
@@ -616,6 +659,16 @@ export class Game {
   private addFloater(x: number, y: number, text: string, color: string) {
     this.floaters.push({ x, y, text, life: 1.1, maxLife: 1.1, color });
   }
+}
+
+/** The label and color a pickup shows, derived from what it grants. */
+function pickupDisplay(content: PickupContent): { color: string; label: string } {
+  if (content.type === 'weapon') {
+    const def = WEAPON_DEFS[content.weapon];
+    return { color: def.color, label: def.name };
+  }
+  const def = defFor(content.power);
+  return { color: def.color, label: def.label };
 }
 
 function createPlayer(): Player {

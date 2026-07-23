@@ -1,5 +1,7 @@
+import { WEAPON_DEFS } from '../config';
 import { Game } from '../game';
 import type { InputSource } from '../input';
+import type { WeaponKind } from '../types';
 
 /**
  * Headless simulation harness: drives the real `Game` loop with a scripted
@@ -62,6 +64,8 @@ export interface SimOptions {
   seed: number;
   /** When true, the ship carries a maxed loadout maintained every frame. */
   buffed: boolean;
+  /** Weapon to max out for the buffed run (default scatter — covers both lanes). */
+  weapon?: WeaponKind;
   /** Wall-clock seconds to simulate before giving up (a survival cap). */
   maxSeconds: number;
 }
@@ -74,15 +78,16 @@ export interface SimResult {
   score: number;
 }
 
-/** Keeps a maxed loadout topped up so a hazard strip cannot erase it mid-run. */
-function maintainLoadout(game: Game) {
+/**
+ * Equips a weapon and maxes its buffs every frame, so a hazard strip cannot
+ * erase the loadout mid-run and the comparison stays a clean maxed-vs-none.
+ */
+function maintainLoadout(game: Game, weapon: WeaponKind) {
+  game.weapon = weapon;
   game.effects.reset();
-  for (let level = 0; level < 3; level += 1) {
-    game.effects.apply('power');
-    game.effects.apply('rapid');
-    game.effects.apply('drone');
+  for (const buff of WEAPON_DEFS[weapon].buffs) {
+    for (let level = 0; level < 3; level += 1) game.effects.apply(buff);
   }
-  game.effects.apply('double');
 }
 
 export function simulate(opts: SimOptions): SimResult {
@@ -102,7 +107,7 @@ export function simulate(opts: SimOptions): SimResult {
 
       // Isolate the weapon-vs-pressure comparison: no random pickups reach the
       // ship, and the buffed run's loadout is controlled rather than looted.
-      if (opts.buffed) maintainLoadout(game);
+      if (opts.buffed) maintainLoadout(game, opts.weapon ?? 'scatter');
       else game.effects.reset();
       game.pickups.length = 0;
 

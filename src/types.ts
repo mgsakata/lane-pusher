@@ -83,16 +83,42 @@ export interface EnemyShot {
   damage: number;
 }
 
+export type WeaponKind = 'blaster' | 'scatter' | 'railgun';
+
+/** Static definition of a weapon and how it fires. */
+export interface WeaponDef {
+  kind: WeaponKind;
+  name: string;
+  color: string;
+  /** Seconds between shots at base fire rate. */
+  baseCooldown: number;
+  /** Damage per projectile at base. */
+  baseDamage: number;
+  projectileSpeed: number;
+  projectileRadius: number;
+  /** Whether shots pass through enemies. */
+  pierce: boolean;
+  /** Buff kinds that upgrade this weapon (and only this weapon). */
+  buffs: PowerUpKind[];
+  /** Relative spawn weight of the pickup that switches to this weapon. */
+  switchWeight: number;
+}
+
 export type PowerUpKind =
+  // Blaster buffs
   | 'rapid'
-  | 'double'
+  | 'twin'
+  // Scatter buffs
+  | 'spread'
+  | 'punch'
+  // Railgun buffs
+  | 'charge'
+  | 'overload'
+  // Universal buffs
+  | 'slow'
+  // Universal instants
   | 'shield'
   | 'heal'
-  | 'pierce'
-  | 'slow'
-  | 'power'
-  | 'drone'
-  | 'magnet'
   | 'bomb';
 
 export interface PowerUpDef {
@@ -112,9 +138,14 @@ export interface PowerUpDef {
   maxLevel?: number;
 }
 
+/** A pickup either grants a power-up or switches the active weapon. */
+export type PickupContent =
+  | { type: 'power'; power: PowerUpKind }
+  | { type: 'weapon'; weapon: WeaponKind };
+
 export interface Pickup {
   id: number;
-  kind: PowerUpKind;
+  content: PickupContent;
   lane: LaneIndex;
   x: number;
   y: number;
@@ -131,6 +162,9 @@ export interface Projectile {
   y: number;
   radius: number;
   damage: number;
+  color: string;
+  /** Upward pixels per second. */
+  speed: number;
   /** Passes through enemies instead of being consumed. */
   pierce: boolean;
   /** Enemy ids already damaged, so a piercing shot hits each target once. */
