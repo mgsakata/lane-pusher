@@ -1,11 +1,22 @@
 import { LANE_COUNT } from './config';
 
 /**
+ * What the game polls each frame for player intent. The DOM `Input` implements
+ * this, and headless drivers (tests, autopilots) can provide their own.
+ */
+export interface InputSource {
+  /** A pending lane index, returned once then cleared. */
+  consumeLaneTarget(): number | null;
+  /** Whether start/restart was pressed since the last call. */
+  consumeConfirm(): boolean;
+}
+
+/**
  * Collects lane-change and confirm intents from keyboard, mouse and touch.
  * The game polls `consumeLaneTarget()` / `consumeConfirm()` once per frame so
  * input never fires twice for a single press.
  */
-export class Input {
+export class Input implements InputSource {
   private laneTarget: number | null = null;
   private confirm = false;
   private disposers: Array<() => void> = [];

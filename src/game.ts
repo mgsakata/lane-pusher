@@ -20,7 +20,7 @@ import {
   weaponCooldown,
   weaponDamage,
 } from './balance';
-import { Input } from './input';
+import type { InputSource } from './input';
 import { Effects } from './powerups';
 import { Spawner, type EnemySpawn, type PickupSpawn } from './spawner';
 import type {
@@ -73,9 +73,9 @@ export class Game {
   shake = 0;
 
   private nextId = 1;
-  private input: Input;
+  private input: InputSource;
 
-  constructor(input: Input) {
+  constructor(input: InputSource) {
     this.input = input;
   }
 
@@ -630,6 +630,7 @@ function createPlayer(): Player {
 }
 
 function readBestScore(): number {
+  if (typeof localStorage === 'undefined') return 0;
   try {
     return Number(localStorage.getItem(BEST_SCORE_KEY)) || 0;
   } catch {
@@ -638,6 +639,7 @@ function readBestScore(): number {
 }
 
 function writeBestScore(value: number) {
+  if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(BEST_SCORE_KEY, String(value));
   } catch {
