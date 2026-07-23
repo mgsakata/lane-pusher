@@ -118,7 +118,56 @@ export const ENEMY_DEFS: EnemyDef[] = [
     weight: 4,
     stripsPowerups: true,
   },
+  {
+    kind: 'weaver',
+    hp: 3,
+    speed: 120,
+    damage: 1,
+    score: 25,
+    radius: 18,
+    color: '#06d6a0',
+    minWave: 3,
+    weight: 6,
+    weaveInterval: 0.9,
+  },
+  {
+    kind: 'armored',
+    hp: 4,
+    speed: 70,
+    damage: 2,
+    score: 55,
+    radius: 26,
+    color: '#8d99ae',
+    minWave: 4,
+    weight: 5,
+    armor: 4,
+  },
+  {
+    kind: 'shooter',
+    hp: 3,
+    speed: 55,
+    damage: 1,
+    score: 45,
+    radius: 22,
+    color: '#e07a5f',
+    minWave: 4,
+    weight: 5,
+    shootInterval: 1.6,
+  },
 ];
+
+/** Downward shots fired by shooter enemies. */
+export const ENEMY_SHOT = {
+  speed: 300,
+  damage: 1,
+  radius: 7,
+  color: '#ffb703',
+};
+
+export const WEAVE = {
+  /** Pixels per second the weaver slides toward its new lane center. */
+  slideSpeed: 520,
+};
 
 /** A dying splitter bursts into this many runners in the same lane. */
 export const SPLITTER_CHILDREN = 2;
@@ -155,6 +204,10 @@ export const POWERUP_DEFS: PowerUpDef[] = [
   { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
   { kind: 'pierce', label: 'PIER', type: 'buff', color: '#ffd60a', weight: 7 },
   { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5 },
+  { kind: 'power', label: 'PWR', type: 'buff', color: '#ff9f1c', weight: 8 },
+  { kind: 'drone', label: 'DRONE', type: 'buff', color: '#2ec4b6', weight: 6 },
+  { kind: 'magnet', label: 'MAG', type: 'buff', color: '#c77dff', weight: 5 },
+  { kind: 'bomb', label: 'BOMB', type: 'instant', color: '#ef476f', weight: 4 },
 ];
 
 export const POWERUP = {
@@ -172,6 +225,10 @@ export const POWERUP = {
   /** Hits absorbed by a single SHLD pickup. */
   shieldCharges: 2,
   healAmount: 1,
+  /** Extra weapon damage while PWR is held. */
+  powerBonus: 1,
+  /** Horizontal offset of the DRONE companion from the player. */
+  droneOffsetX: 30,
 };
 
 // ---------------------------------------------------------------- scoring

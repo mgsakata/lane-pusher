@@ -1,6 +1,7 @@
 import {
   COLORS,
   ENEMY_DEFS,
+  ENEMY_SHOT,
   FX,
   GOAL_LINE_Y,
   LANE_COUNT,
@@ -10,6 +11,7 @@ import {
   SPAWN_Y,
   WAVE,
   WEAPON,
+  WEAVE,
   laneCenterX,
 } from './config';
 import { Input } from './input';
@@ -17,6 +19,7 @@ import { Effects } from './powerups';
 import { Spawner, type EnemySpawn, type PickupSpawn } from './spawner';
 import type {
   Enemy,
+  EnemyShot,
   FloatingText,
   LaneIndex,
   Particle,
@@ -45,6 +48,7 @@ export class Game {
   player: Player = createPlayer();
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
+  enemyShots: EnemyShot[] = [];
   pickups: Pickup[] = [];
   particles: Particle[] = [];
   floaters: FloatingText[] = [];
@@ -78,6 +82,7 @@ export class Game {
     this.player = createPlayer();
     this.enemies = [];
     this.projectiles = [];
+    this.enemyShots = [];
     this.pickups = [];
     this.particles = [];
     this.floaters = [];
@@ -138,23 +143,41 @@ export class Game {
     this.player.fireCooldown += cooldown;
 
     const pierce = this.effects.isActive('pierce');
-    this.spawnProjectile(this.player.lane, pierce);
+    const damage =
+      WEAPON.damage + (this.effects.isActive('power') ? POWERUP.powerBonus : 0);
+
+    this.spawnProjectile(this.player.lane, pierce, damage, this.player.x);
 
     if (this.effects.isActive('double')) {
       // DUAL covers the lane you are not standing in.
       const other = (this.player.lane === 0 ? 1 : 0) as LaneIndex;
-      this.spawnProjectile(other, pierce);
+      this.spawnProjectile(other, pierce, damage, laneCenterX(other));
+    }
+
+    if (this.effects.isActive('drone')) {
+      // The companion adds a second shot in your lane, offset to its side.
+      this.spawnProjectile(
+        this.player.lane,
+        pierce,
+        damage,
+        this.player.x + POWERUP.droneOffsetX,
+      );
     }
   }
 
-  private spawnProjectile(lane: LaneIndex, pierce: boolean) {
+  private spawnProjectile(
+    lane: LaneIndex,
+    pierce: boolean,
+    damage: number,
+    x: number,
+  ) {
     this.projectiles.push({
       id: this.nextId++,
       lane,
-      x: laneCenterX(lane),
+      x,
       y: PLAYER.y - PLAYER.radius,
       radius: WEAPON.projectileRadius,
-      damage: WEAPON.damage,
+      damage,
       pierce,
       hitIds: new Set(),
     });
@@ -209,6 +232,12 @@ export class Game {
       radius: def.radius,
       color: def.color,
       stripsPowerups: def.stripsPowerups ?? false,
+      armor: def.armor ?? 0,
+      maxArmor: def.armor ?? 0,
+      weaveInterval: def.weaveInterval ?? 0,
+      weaveTimer: def.weaveInterval ?? 0,
+      shootInterval: def.shootInterval ?? 0,
+      shootTimer: def.shootInterval ?? 0,
       hitFlash: 0,
       age: 0,
     });
@@ -237,12 +266,20 @@ export class Game {
       enemy.y += enemy.speed * enemyScale * dt;
       enemy.age += dt;
       enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+
+      if (enemy.kind === 'weaver') this.updateWeaver(enemy, dt, enemyScale);
+      if (enemy.kind === 'shooter') this.updateShooter(enemy, dt, enemyScale);
     }
 
     for (const projectile of this.projectiles) {
       projectile.y -= WEAPON.projectileSpeed * dt;
     }
     this.projectiles = this.projectiles.filter((p) => p.y + p.radius > 0);
+
+    for (const shot of this.enemyShots) {
+      shot.y += ENEMY_SHOT.speed * enemyScale * dt;
+    }
+    this.enemyShots = this.enemyShots.filter((s) => s.y - s.radius < GOAL_LINE_Y + 20);
 
     for (const pickup of this.pickups) {
       pickup.y += POWERUP.speed * dt;
@@ -266,10 +303,43 @@ export class Game {
     this.floaters = this.floaters.filter((f) => f.life > 0);
   }
 
+  /** Weavers switch lanes on a timer and slide toward the new lane center. */
+  private updateWeaver(enemy: Enemy, dt: number, scale: number) {
+    enemy.weaveTimer -= dt * scale;
+    if (enemy.weaveTimer <= 0) {
+      enemy.weaveTimer += enemy.weaveInterval;
+      enemy.lane = (enemy.lane === 0 ? 1 : 0) as LaneIndex;
+    }
+
+    const target = laneCenterX(enemy.lane);
+    const step = WEAVE.slideSpeed * dt;
+    const delta = target - enemy.x;
+    enemy.x =
+      Math.abs(delta) <= step ? target : enemy.x + Math.sign(delta) * step;
+  }
+
+  /** Shooters periodically fire a shot straight down their lane. */
+  private updateShooter(enemy: Enemy, dt: number, scale: number) {
+    if (enemy.y < 0) return;
+    enemy.shootTimer -= dt * scale;
+    if (enemy.shootTimer > 0) return;
+    enemy.shootTimer += enemy.shootInterval;
+
+    this.enemyShots.push({
+      id: this.nextId++,
+      lane: enemy.lane,
+      x: enemy.x,
+      y: enemy.y + enemy.radius,
+      radius: ENEMY_SHOT.radius,
+      damage: ENEMY_SHOT.damage,
+    });
+  }
+
   // ---------------------------------------------------------- collisions
 
   private resolveCollisions() {
     this.resolveProjectileHits();
+    this.resolveEnemyShots();
     this.resolvePickups();
     this.resolveEnemyThreats();
   }
@@ -288,12 +358,19 @@ export class Game {
           continue;
         }
 
-        enemy.hp -= projectile.damage;
         enemy.hitFlash = FX.hitFlashTime;
         projectile.hitIds.add(enemy.id);
-        this.burst(projectile.x, projectile.y, enemy.color, 4, 140);
 
-        if (enemy.hp <= 0) this.killEnemy(enemy);
+        if (enemy.armor > 0) {
+          // Each hit chips one armor plate; HP is untouchable until it breaks.
+          enemy.armor -= 1;
+          this.burst(projectile.x, projectile.y, '#e8edf3', 5, 160);
+        } else {
+          enemy.hp -= projectile.damage;
+          this.burst(projectile.x, projectile.y, enemy.color, 4, 140);
+          if (enemy.hp <= 0) this.killEnemy(enemy);
+        }
+
         if (!projectile.pierce) {
           spent.add(projectile.id);
           break;
@@ -305,6 +382,24 @@ export class Game {
       this.projectiles = this.projectiles.filter((p) => !spent.has(p.id));
     }
     this.enemies = this.enemies.filter((e) => e.hp > 0);
+  }
+
+  /** Shooter shots hurt the player on contact; dodge them by switching lanes. */
+  private resolveEnemyShots() {
+    const spent = new Set<number>();
+
+    for (const shot of this.enemyShots) {
+      if (shot.lane !== this.player.lane) continue;
+      if (Math.abs(shot.y - PLAYER.y) > shot.radius + PLAYER.radius) continue;
+
+      this.damagePlayer(shot.damage);
+      this.burst(shot.x, shot.y, ENEMY_SHOT.color, 8, 200);
+      spent.add(shot.id);
+    }
+
+    if (spent.size > 0) {
+      this.enemyShots = this.enemyShots.filter((s) => !spent.has(s.id));
+    }
   }
 
   private killEnemy(enemy: Enemy) {
@@ -346,13 +441,18 @@ export class Game {
 
   private resolvePickups() {
     const collected: number[] = [];
+    // MAG collects from either lane; otherwise you must be in the pickup's lane.
+    const magnet = this.effects.isActive('magnet');
 
     for (const pickup of this.pickups) {
-      if (pickup.lane !== this.player.lane) continue;
       const dy = Math.abs(pickup.y - PLAYER.y);
-      const dx = Math.abs(pickup.x - this.player.x);
       if (dy > pickup.radius + PLAYER.radius) continue;
-      if (dx > pickup.radius + PLAYER.radius) continue;
+
+      if (!magnet) {
+        if (pickup.lane !== this.player.lane) continue;
+        const dx = Math.abs(pickup.x - this.player.x);
+        if (dx > pickup.radius + PLAYER.radius) continue;
+      }
 
       collected.push(pickup.id);
       const instant = this.effects.apply(pickup.kind);
@@ -365,6 +465,7 @@ export class Game {
       if (instant.shieldCharges > 0) {
         this.player.shieldCharges += instant.shieldCharges;
       }
+      if (instant.bomb) this.detonateBomb();
 
       this.burst(pickup.x, pickup.y, pickup.color, 10, 200);
       this.addFloater(pickup.x, pickup.y - 20, pickup.label, pickup.color);
@@ -374,6 +475,24 @@ export class Game {
       const taken = new Set(collected);
       this.pickups = this.pickups.filter((p) => !taken.has(p.id));
     }
+  }
+
+  /** BOMB vaporizes every regular enemy on screen; hazards are immune. */
+  private detonateBomb() {
+    this.shake = FX.shakeOnHit * 1.4;
+    const multiplier = this.comboMultiplier;
+
+    for (const enemy of this.enemies) {
+      if (enemy.stripsPowerups) continue;
+      this.kills += 1;
+      this.killStreak += 1;
+      this.score += enemy.score * multiplier;
+      this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
+    }
+
+    // Hazards survive; every regular enemy and all incoming shots are cleared.
+    this.enemies = this.enemies.filter((e) => e.stripsPowerups);
+    this.enemyShots = [];
   }
 
   /** Enemies that reach the player or cross the goal line cost health. */

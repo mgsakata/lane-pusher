@@ -6,7 +6,10 @@ export type EnemyKind =
   | 'brute'
   | 'splitter'
   | 'boss'
-  | 'hazard';
+  | 'hazard'
+  | 'weaver'
+  | 'armored'
+  | 'shooter';
 
 /** Static definition of an enemy archetype. Instances are scaled by wave. */
 export interface EnemyDef {
@@ -29,6 +32,12 @@ export interface EnemyDef {
    * being in the other lane.
    */
   stripsPowerups?: boolean;
+  /** Front-shield hits that must be broken before HP can be damaged. */
+  armor?: number;
+  /** Seconds between lane switches. Present on weavers only. */
+  weaveInterval?: number;
+  /** Seconds between downward shots. Present on shooters only. */
+  shootInterval?: number;
 }
 
 export interface Enemy {
@@ -46,10 +55,32 @@ export interface Enemy {
   color: string;
   /** Copied from the def: a hazard strips buffs instead of dealing damage. */
   stripsPowerups: boolean;
+  /** Remaining front-shield hits; while positive, HP cannot be reduced. */
+  armor: number;
+  /** Starting armor, for rendering the shield arc. */
+  maxArmor: number;
+  /** Seconds until the next lane switch; <= 0 for non-weavers. */
+  weaveTimer: number;
+  /** How often this weaver switches lanes. */
+  weaveInterval: number;
+  /** Seconds until the next shot; <= 0 for non-shooters. */
+  shootTimer: number;
+  /** How often this shooter fires. */
+  shootInterval: number;
   /** Seconds left on the white hit-flash overlay. */
   hitFlash: number;
   /** Seconds since spawn, used for idle wobble. */
   age: number;
+}
+
+/** A projectile fired downward by a shooter enemy; damages the player. */
+export interface EnemyShot {
+  id: number;
+  lane: LaneIndex;
+  x: number;
+  y: number;
+  radius: number;
+  damage: number;
 }
 
 export type PowerUpKind =
@@ -58,7 +89,11 @@ export type PowerUpKind =
   | 'shield'
   | 'heal'
   | 'pierce'
-  | 'slow';
+  | 'slow'
+  | 'power'
+  | 'drone'
+  | 'magnet'
+  | 'bomb';
 
 export interface PowerUpDef {
   kind: PowerUpKind;

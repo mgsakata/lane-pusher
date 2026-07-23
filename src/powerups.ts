@@ -6,6 +6,8 @@ import { pickWeighted } from './util';
 export interface InstantEffect {
   heal: number;
   shieldCharges: number;
+  /** Detonate: clear regular enemies on screen. */
+  bomb: boolean;
 }
 
 /**
@@ -22,11 +24,12 @@ export class Effects {
     const def = defFor(kind);
     if (def.type === 'buff') {
       this.held.add(kind);
-      return { heal: 0, shieldCharges: 0 };
+      return { heal: 0, shieldCharges: 0, bomb: false };
     }
     return {
       heal: kind === 'heal' ? POWERUP.healAmount : 0,
       shieldCharges: kind === 'shield' ? POWERUP.shieldCharges : 0,
+      bomb: kind === 'bomb',
     };
   }
 

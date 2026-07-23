@@ -26,6 +26,7 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   for (const pickup of game.pickups) drawPickup(ctx, pickup);
   for (const enemy of game.enemies) drawEnemy(ctx, enemy);
   drawProjectiles(ctx, game);
+  drawEnemyShots(ctx, game);
   if (game.phase === 'playing') drawPlayer(ctx, game);
   drawParticles(ctx, game);
   drawFloaters(ctx, game);
@@ -108,6 +109,35 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+
+  // The DRONE companion hovers at the player's side and bobs gently.
+  if (game.effects.isActive('drone')) {
+    const bob = Math.sin(game.elapsed * 8) * 3;
+    const dx = x + 30;
+    const dy = y + 6 + bob;
+    ctx.save();
+    ctx.fillStyle = '#2ec4b6';
+    ctx.shadowColor = '#2ec4b6';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(dx, dy, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawEnemyShots(ctx: CanvasRenderingContext2D, game: Game) {
+  if (game.enemyShots.length === 0) return;
+  ctx.save();
+  ctx.fillStyle = '#ffb703';
+  ctx.shadowColor = '#ffb703';
+  ctx.shadowBlur = 12;
+  for (const shot of game.enemyShots) {
+    ctx.beginPath();
+    ctx.ellipse(shot.x, shot.y, shot.radius * 0.75, shot.radius * 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
@@ -141,6 +171,15 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
       ctx.lineTo(x, y + radius);
       ctx.lineTo(x - radius, y);
       break;
+    case 'weaver':
+      for (let i = 0; i < 6; i += 1) {
+        const a = (Math.PI / 3) * i - Math.PI / 2;
+        const px = x + Math.cos(a) * radius;
+        const py = y + Math.sin(a) * radius;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      break;
     default:
       ctx.arc(x, y, radius, 0, Math.PI * 2);
   }
@@ -154,6 +193,26 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
     ctx.beginPath();
     ctx.arc(x, y, radius + 9, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // A shooter's barrel points down the lane it fires along.
+  if (enemy.kind === 'shooter') {
+    ctx.fillStyle = enemy.color;
+    ctx.fillRect(x - 4, y + radius - 4, 8, 12);
+  }
+
+  // Armor reads as a plated arc across the top that shrinks as it breaks.
+  if (enemy.armor > 0) {
+    const frac = enemy.armor / enemy.maxArmor;
+    const start = -Math.PI * 0.85;
+    const end = -Math.PI * 0.15;
+    ctx.strokeStyle = '#e8edf3';
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 6, start, start + (end - start) * frac);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 
