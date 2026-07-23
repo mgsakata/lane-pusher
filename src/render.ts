@@ -643,7 +643,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   y += 10;
   centered(ctx, 'Dodge pink DAMPENERS — they strip your upgrades', y, '11px', '#ff5cf0');
   y += 22;
-  centered(ctx, '← →  or tap a lane to move   ·   SPACE = PULSE', y, '11px', COLORS.textDim);
+  centered(ctx, '← →  move   ·   SPACE = PULSE   ·   ESC / P / M = pause', y, '11px', COLORS.textDim);
   y += 30;
   centered(
     ctx,

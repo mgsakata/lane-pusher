@@ -63,6 +63,8 @@ export class Input implements InputSource {
         case 'Escape':
         case 'p':
         case 'P':
+        case 'm':
+        case 'M':
           this.pause = true;
           break;
         case 'h':
