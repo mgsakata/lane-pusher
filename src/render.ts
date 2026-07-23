@@ -1,4 +1,5 @@
 import {
+  ABILITY,
   COLORS,
   FIELD_MARGIN,
   GOAL_LINE_Y,
@@ -28,7 +29,9 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   for (const enemy of game.enemies) drawEnemy(ctx, enemy);
   drawProjectiles(ctx, game);
   drawEnemyShots(ctx, game);
-  if (game.phase === 'playing') drawPlayer(ctx, game);
+  if (game.phase === 'playing' || game.phase === 'choosing') {
+    drawPlayer(ctx, game);
+  }
   drawParticles(ctx, game);
   drawFloaters(ctx, game);
 
@@ -37,6 +40,7 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   drawHud(ctx, game);
   if (game.phase === 'title') drawTitle(ctx, game);
   if (game.phase === 'gameover') drawGameOver(ctx, game);
+  if (game.phase === 'choosing') drawChoice(ctx, game);
 }
 
 // ------------------------------------------------------------------- field
@@ -372,13 +376,48 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
 
   drawHealth(ctx, game);
   drawEffectBar(ctx, game);
+  if (game.phase === 'playing' || game.phase === 'choosing') {
+    drawAbility(ctx, game);
+  }
+}
+
+function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
+  const cx = WIDTH - 34;
+  const cy = HEIGHT - 28;
+  const r = 20;
+  const frac = Math.min(1, game.abilityCharge / ABILITY.maxCharge);
+  const ready = game.abilityReady;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 3, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+  ctx.strokeStyle = ABILITY.color;
+  ctx.lineWidth = 4;
+  if (ready) {
+    ctx.shadowColor = ABILITY.color;
+    ctx.shadowBlur = 14;
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = ready ? ABILITY.color : COLORS.textDim;
+  ctx.font = 'bold 9px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(ABILITY.name, cx, cy);
 }
 
 function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
   const size = 14;
   const gap = 6;
   const y = HEIGHT - 34;
-  for (let i = 0; i < PLAYER.maxHealth; i += 1) {
+  const maxHealth = game.player.maxHealth;
+  for (let i = 0; i < maxHealth; i += 1) {
     const x = 16 + i * (size + gap);
     ctx.fillStyle =
       i < game.player.health ? COLORS.health : 'rgba(255,255,255,0.12)';
@@ -392,7 +431,7 @@ function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const x = 16 + PLAYER.maxHealth * (size + gap) + 6;
+    const x = 16 + maxHealth * (size + gap) + 6;
     ctx.fillText(`+${game.player.shieldCharges}`, x, y + size / 2);
   }
 }
@@ -423,7 +462,7 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   });
 
   let x = rightEdge;
-  let y = HEIGHT - 54;
+  let y = HEIGHT - 64;
   for (const chip of chips) {
     if (x - chip.w < leftLimit) {
       x = rightEdge;
@@ -491,6 +530,63 @@ function drawGameOver(ctx: CanvasRenderingContext2D, game: Game) {
     isBest ? COLORS.player : COLORS.textDim,
   );
   centered(ctx, 'PRESS SPACE OR TAP TO RETRY', HEIGHT / 2 + 90, 'bold 16px', COLORS.text);
+}
+
+function drawChoice(ctx: CanvasRenderingContext2D, game: Game) {
+  dimScreen(ctx);
+  centered(ctx, 'CHOOSE AN UPGRADE', HEIGHT * 0.28, 'bold 24px', COLORS.text);
+
+  const n = game.offers.length;
+  const cardW = 132;
+  const cardH = 156;
+  const gap = 12;
+  const totalW = n * cardW + (n - 1) * gap;
+  let x = (WIDTH - totalW) / 2;
+  const y = HEIGHT / 2 - cardH / 2;
+
+  game.offers.forEach((offer, i) => {
+    const selected = i === game.offerIndex;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, cardW, cardH, 12);
+    ctx.fillStyle = 'rgba(20,26,38,0.96)';
+    ctx.fill();
+    ctx.strokeStyle = offer.color;
+    ctx.lineWidth = selected ? 4 : 2;
+    if (selected) {
+      ctx.shadowColor = offer.color;
+      ctx.shadowBlur = 18;
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Color swatch, label, and description stacked in the card.
+    ctx.fillStyle = offer.color;
+    ctx.beginPath();
+    ctx.arc(x + cardW / 2, y + 40, 16, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = offer.color;
+    ctx.font = 'bold 17px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(offer.label, x + cardW / 2, y + cardH * 0.6);
+
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(offer.desc, x + cardW / 2, y + cardH * 0.78);
+
+    x += cardW + gap;
+  });
+
+  centered(
+    ctx,
+    'TAP A CARD   ·   ←  →  then SPACE',
+    HEIGHT * 0.72,
+    '13px',
+    COLORS.textDim,
+  );
 }
 
 function dimScreen(ctx: CanvasRenderingContext2D) {

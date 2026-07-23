@@ -20,13 +20,27 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-/** An InputSource the harness sets programmatically each frame. */
+/** An InputSource the harness (and tests) set programmatically each frame. */
 export class ScriptedInput implements InputSource {
   private laneTarget: number | null = null;
   private confirm = false;
+  private ability = false;
+  private pointer: number | null = null;
 
   setLane(lane: number) {
     this.laneTarget = lane;
+  }
+
+  press() {
+    this.confirm = true;
+  }
+
+  triggerAbility() {
+    this.ability = true;
+  }
+
+  setPointer(fraction: number) {
+    this.pointer = fraction;
   }
 
   consumeLaneTarget(): number | null {
@@ -39,6 +53,22 @@ export class ScriptedInput implements InputSource {
     const c = this.confirm;
     this.confirm = false;
     return c;
+  }
+
+  consumeAbility(): boolean {
+    const a = this.ability;
+    this.ability = false;
+    return a;
+  }
+
+  consumeSelectDelta(): number {
+    return 0;
+  }
+
+  consumePointerFraction(): number | null {
+    const p = this.pointer;
+    this.pointer = null;
+    return p;
   }
 }
 
@@ -104,6 +134,13 @@ export function simulate(opts: SimOptions): SimResult {
     for (let i = 0; i < steps; i += 1) {
       input.setLane(chooseLane(game));
       game.update(dt);
+
+      // Skip the between-wave upgrade screen so the comparison stays a clean
+      // maxed-weapon-vs-nothing test rather than an autopilot draft.
+      if (game.phase === 'choosing') {
+        game.offers = [];
+        game.phase = 'playing';
+      }
 
       // Isolate the weapon-vs-pressure comparison: no random pickups reach the
       // ship, and the buffed run's loadout is controlled rather than looted.

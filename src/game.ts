@@ -1,4 +1,5 @@
 import {
+  ABILITY,
   COLORS,
   ENEMY_DEFS,
   ENEMY_SHOT,
@@ -12,6 +13,7 @@ import {
   SPAWN_Y,
   STARTING_WEAPON,
   UNIVERSAL_DROPS,
+  UPGRADE,
   WAVE,
   WEAPON_DEFS,
   WEAVE,
@@ -24,6 +26,7 @@ import {
   pelletsPerLane,
   projectileDamage,
 } from './balance';
+import { Emitter } from './events';
 import type { InputSource } from './input';
 import { Effects, defFor } from './powerups';
 import { Spawner, type EnemySpawn } from './spawner';
@@ -36,6 +39,7 @@ import type {
   Phase,
   Pickup,
   PickupContent,
+  PowerUpKind,
   Projectile,
   WeaponKind,
 } from './types';
@@ -43,11 +47,27 @@ import { clamp, randRange, randInt, pickWeighted } from './util';
 
 const BEST_SCORE_KEY = 'lane-pusher.bestScore';
 
+/** Universal buffs that can appear as level-up upgrade offers. */
+const UNIVERSAL_BUFFS: PowerUpKind[] = UNIVERSAL_DROPS.filter(
+  (kind) => defFor(kind).type === 'buff',
+);
+
+/** One selectable option on the between-wave upgrade screen. */
+interface UpgradeOffer {
+  key: string;
+  weight: number;
+  label: string;
+  desc: string;
+  color: string;
+  apply: () => void;
+}
+
 export interface Player {
   lane: LaneIndex;
   /** Rendered x, which slides toward the target lane center. */
   x: number;
   health: number;
+  maxHealth: number;
   shieldCharges: number;
   /** Seconds of remaining post-hit invulnerability. */
   invuln: number;
@@ -67,9 +87,19 @@ export class Game {
 
   effects = new Effects();
   spawner = new Spawner();
+  /** Gameplay event bus for sound and visual feedback to subscribe to. */
+  events = new Emitter();
 
   /** The active weapon; switched by weapon pickups. */
   weapon: WeaponKind = STARTING_WEAPON;
+
+  /** Active-ability charge, filled by kills; ready at ABILITY.maxCharge. */
+  abilityCharge = 0;
+
+  /** Upgrade options shown on the between-wave choice screen. */
+  offers: UpgradeOffer[] = [];
+  /** Keyboard-highlighted offer index. */
+  offerIndex = 0;
 
   score = 0;
   bestScore = readBestScore();
@@ -104,17 +134,34 @@ export class Game {
     this.effects.reset();
     this.spawner.reset();
     this.weapon = STARTING_WEAPON;
+    this.abilityCharge = 0;
+    this.offers = [];
+    this.offerIndex = 0;
     this.score = 0;
     this.kills = 0;
     this.killStreak = 0;
     this.elapsed = 0;
     this.shake = 0;
     this.phase = 'playing';
+    this.events.emit('gameStart', {});
+  }
+
+  get abilityReady(): boolean {
+    return this.abilityCharge >= ABILITY.maxCharge;
   }
 
   update(dt: number) {
+    // Drain every input each frame; route by phase below.
     const laneTarget = this.input.consumeLaneTarget();
     const confirm = this.input.consumeConfirm();
+    const ability = this.input.consumeAbility();
+    const selectDelta = this.input.consumeSelectDelta();
+    const pointer = this.input.consumePointerFraction();
+
+    if (this.phase === 'choosing') {
+      this.updateChoosing(dt, confirm, selectDelta, pointer);
+      return;
+    }
 
     if (this.phase !== 'playing') {
       // A tap sets a lane and confirms at once, so either signal starts a run.
@@ -127,6 +174,7 @@ export class Game {
     if (laneTarget !== null) {
       this.player.lane = clamp(laneTarget, 0, LANE_COUNT - 1) as LaneIndex;
     }
+    if (ability) this.useAbility();
 
     this.updatePlayer(dt);
     this.fireWeapon(dt);
@@ -160,6 +208,7 @@ export class Game {
     const def = WEAPON_DEFS[this.weapon];
     const levels = this.levels;
     this.player.fireCooldown += fireCooldown(this.weapon, levels);
+    this.events.emit('fire', { weapon: this.weapon });
 
     const damage = projectileDamage(this.weapon, levels);
     const pellets = pelletsPerLane(this.weapon, levels);
@@ -222,6 +271,8 @@ export class Game {
         `WAVE ${tick.waveCleared} CLEAR  +${bonus}`,
         COLORS.player,
       );
+      this.events.emit('waveClear', { wave: tick.waveCleared });
+      this.offerUpgrades();
     }
 
     if (tick.waveStarted !== null) {
@@ -234,7 +285,173 @@ export class Game {
         label,
         this.spawner.isBossWave ? '#ff2e63' : COLORS.text,
       );
+      this.events.emit('waveStart', {
+        wave: tick.waveStarted,
+        boss: this.spawner.isBossWave,
+      });
     }
+  }
+
+  // ------------------------------------------------------------- ability
+
+  private chargeAbility() {
+    this.abilityCharge = Math.min(ABILITY.maxCharge, this.abilityCharge + 1);
+  }
+
+  /** PULSE: clear incoming shots, damage every enemy, and grant i-frames. */
+  private useAbility() {
+    if (!this.abilityReady) return;
+    this.abilityCharge = 0;
+    this.player.invuln = Math.max(this.player.invuln, ABILITY.invuln);
+    this.shake = FX.shakeOnHit * 1.5;
+    this.enemyShots = [];
+
+    const multiplier = this.comboMultiplier;
+    for (const enemy of this.enemies) {
+      if (enemy.stripsPowerups) continue;
+      enemy.armor = 0;
+      enemy.hp -= ABILITY.damage;
+      this.burst(enemy.x, enemy.y, ABILITY.color, 6, 220);
+      if (enemy.hp <= 0) {
+        this.kills += 1;
+        this.killStreak += 1;
+        this.score += enemy.score * multiplier;
+        this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
+      }
+    }
+    this.enemies = this.enemies.filter((e) => e.hp > 0 || e.stripsPowerups);
+    this.addFloater(this.player.x, PLAYER.y - 40, `${ABILITY.name}!`, ABILITY.color);
+    this.events.emit('ability', {});
+  }
+
+  // ------------------------------------------------------ upgrade choices
+
+  /** Pauses into the choice screen with a fresh set of upgrade offers. */
+  private offerUpgrades() {
+    this.offers = this.generateOffers();
+    this.offerIndex = 0;
+    if (this.offers.length > 0) {
+      this.phase = 'choosing';
+      this.events.emit('upgradeOffered', {});
+    }
+  }
+
+  private generateOffers(): UpgradeOffer[] {
+    const pool: UpgradeOffer[] = [];
+
+    // Switch to a weapon you are not currently holding.
+    for (const def of Object.values(WEAPON_DEFS)) {
+      if (def.kind === this.weapon) continue;
+      pool.push({
+        key: `weapon:${def.kind}`,
+        weight: 4,
+        label: def.name,
+        desc: 'Switch weapon',
+        color: def.color,
+        apply: () => {
+          this.weapon = def.kind;
+          this.events.emit('weaponSwitch', { weapon: def.kind });
+        },
+      });
+    }
+
+    // Level up a buff for the current weapon or a universal one.
+    const buffKinds = [...WEAPON_DEFS[this.weapon].buffs, ...UNIVERSAL_BUFFS];
+    for (const kind of buffKinds) {
+      const def = defFor(kind);
+      const maxLevel = def.maxLevel ?? 1;
+      if (this.effects.level(kind) >= maxLevel) continue;
+      pool.push({
+        key: `buff:${kind}`,
+        weight: 6,
+        label: def.label,
+        desc: maxLevel > 1 ? `Upgrade Lv${this.effects.level(kind) + 1}` : 'New buff',
+        color: def.color,
+        apply: () => {
+          this.effects.apply(kind);
+          this.events.emit('buffUp', { kind, level: this.effects.level(kind) });
+        },
+      });
+    }
+
+    pool.push({
+      key: 'maxhp',
+      weight: 5,
+      label: '+1 MAX HP',
+      desc: 'Raise max health',
+      color: COLORS.health,
+      apply: () => {
+        this.player.maxHealth += 1;
+        this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
+      },
+    });
+    if (this.player.health < this.player.maxHealth) {
+      pool.push({
+        key: 'heal',
+        weight: 5,
+        label: 'REPAIR',
+        desc: 'Refill health',
+        color: '#3ddc97',
+        apply: () => {
+          this.player.health = this.player.maxHealth;
+        },
+      });
+    }
+    pool.push({
+      key: 'shield',
+      weight: 4,
+      label: '+2 SHIELD',
+      desc: 'Absorb 2 hits',
+      color: COLORS.shield,
+      apply: () => {
+        this.player.shieldCharges += 2;
+      },
+    });
+
+    // Draw distinct offers without replacement.
+    const chosen: UpgradeOffer[] = [];
+    const remaining = pool.slice();
+    while (chosen.length < UPGRADE.choices && remaining.length > 0) {
+      const pick = pickWeighted(remaining, (o) => o.weight);
+      if (!pick) break;
+      chosen.push(pick);
+      remaining.splice(remaining.indexOf(pick), 1);
+    }
+    return chosen;
+  }
+
+  private updateChoosing(
+    dt: number,
+    confirm: boolean,
+    selectDelta: number,
+    pointer: number | null,
+  ) {
+    if (pointer !== null) {
+      const idx = clamp(
+        Math.floor(pointer * this.offers.length),
+        0,
+        this.offers.length - 1,
+      );
+      this.pickOffer(idx);
+    } else if (selectDelta !== 0) {
+      this.offerIndex = clamp(
+        this.offerIndex + selectDelta,
+        0,
+        this.offers.length - 1,
+      );
+    } else if (confirm) {
+      this.pickOffer(this.offerIndex);
+    }
+    this.decayFx(dt);
+  }
+
+  private pickOffer(index: number) {
+    const offer = this.offers[index];
+    if (!offer) return;
+    offer.apply();
+    this.offers = [];
+    this.phase = 'playing';
+    this.events.emit('upgradePicked', {});
   }
 
   private addEnemy(spawn: EnemySpawn, atY = SPAWN_Y) {
@@ -378,6 +595,7 @@ export class Game {
       radius: ENEMY_SHOT.radius,
       damage: ENEMY_SHOT.damage,
     });
+    this.events.emit('enemyFire', { lane: enemy.lane });
   }
 
   // ---------------------------------------------------------- collisions
@@ -450,6 +668,7 @@ export class Game {
   private killEnemy(enemy: Enemy) {
     this.kills += 1;
     this.killStreak += 1;
+    this.chargeAbility();
 
     const multiplier = this.comboMultiplier;
     const points = enemy.score * multiplier;
@@ -461,6 +680,13 @@ export class Game {
     if (multiplier > 1) {
       this.addFloater(enemy.x, enemy.y, `${points}  x${multiplier}`, COLORS.text);
     }
+
+    this.events.emit('kill', {
+      kind: enemy.kind,
+      x: enemy.x,
+      y: enemy.y,
+      boss: enemy.kind === 'boss',
+    });
 
     if (enemy.kind === 'splitter') this.splitEnemy(enemy);
   }
@@ -508,15 +734,23 @@ export class Game {
 
   private collectPickup(pickup: Pickup) {
     const { content } = pickup;
+    this.events.emit('pickup', { content });
     if (content.type === 'weapon') {
       this.weapon = content.weapon;
+      this.events.emit('weaponSwitch', { weapon: content.weapon });
       return;
     }
 
     const instant = this.effects.apply(content.power);
+    if (defFor(content.power).type === 'buff') {
+      this.events.emit('buffUp', {
+        kind: content.power,
+        level: this.effects.level(content.power),
+      });
+    }
     if (instant.heal > 0) {
       this.player.health = Math.min(
-        PLAYER.maxHealth,
+        this.player.maxHealth,
         this.player.health + instant.heal,
       );
     }
@@ -542,6 +776,7 @@ export class Game {
     // Hazards survive; every regular enemy and all incoming shots are cleared.
     this.enemies = this.enemies.filter((e) => e.stripsPowerups);
     this.enemyShots = [];
+    this.events.emit('bomb', {});
   }
 
   /** Enemies that reach the player or cross the goal line cost health. */
@@ -584,6 +819,7 @@ export class Game {
       this.player.shieldCharges -= 1;
       this.addFloater(this.player.x, PLAYER.y - 34, 'BLOCKED', COLORS.shield);
       this.burst(source.x, source.y, COLORS.shield, 12, 220);
+      this.events.emit('shieldBlock', {});
       return;
     }
 
@@ -596,6 +832,7 @@ export class Game {
       lost > 0 ? 'DAMPENED!' : 'DAMPENER',
       source.color,
     );
+    this.events.emit('dampened', { lost });
   }
 
   private damagePlayer(amount: number) {
@@ -608,11 +845,13 @@ export class Game {
     if (this.player.shieldCharges > 0) {
       this.player.shieldCharges -= 1;
       this.addFloater(this.player.x, PLAYER.y - 34, 'BLOCKED', COLORS.shield);
+      this.events.emit('shieldBlock', {});
       return;
     }
 
     this.player.health -= amount;
     this.addFloater(this.player.x, PLAYER.y - 34, `-${amount}`, COLORS.health);
+    this.events.emit('playerHit', { amount });
 
     if (this.player.health <= 0) {
       this.player.health = 0;
@@ -627,6 +866,7 @@ export class Game {
       this.bestScore = this.score;
       writeBestScore(this.bestScore);
     }
+    this.events.emit('gameOver', { score: this.score, wave: this.spawner.wave });
   }
 
   // ------------------------------------------------------------------ fx
@@ -676,6 +916,7 @@ function createPlayer(): Player {
     lane: 0,
     x: laneCenterX(0),
     health: PLAYER.maxHealth,
+    maxHealth: PLAYER.maxHealth,
     shieldCharges: 0,
     invuln: 0,
     fireCooldown: 0,

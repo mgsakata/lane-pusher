@@ -294,6 +294,33 @@ export const POWERUP = {
   healAmount: 1,
 };
 
+// --------------------------------------------------------------- ability
+
+/** The chargeable active ability (PULSE): a defensive screen-clear + i-frames. */
+export const ABILITY = {
+  name: 'PULSE',
+  /** Kills needed to fully charge. */
+  maxCharge: 22,
+  /** Damage dealt to every regular enemy on activation. */
+  damage: 5,
+  /** Seconds of invulnerability granted. */
+  invuln: 2.6,
+  color: '#ffd60a',
+};
+
+/**
+ * Tap region (as viewport fractions) that fires the ability instead of
+ * switching lanes — the bottom-right corner. Keyboard: Space.
+ */
+export const ABILITY_BUTTON = { xMin: 0.78, yMin: 0.9 };
+
+// -------------------------------------------------------------- upgrades
+
+export const UPGRADE = {
+  /** Options presented after each wave. */
+  choices: 3,
+};
+
 // ---------------------------------------------------------------- scoring
 
 export const SCORE = {
