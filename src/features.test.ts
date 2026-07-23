@@ -1,7 +1,36 @@
 import { describe, expect, it } from 'vitest';
+import { BOSS } from './config';
 import { Emitter } from './events';
 import { Game } from './game';
 import { ScriptedInput } from './testing/sim';
+import type { Enemy } from './types';
+
+function makeBoss(over: Partial<Enemy> = {}): Enemy {
+  return {
+    id: 1,
+    kind: 'boss',
+    lane: 0,
+    x: 140,
+    y: -40,
+    hp: 60,
+    maxHp: 60,
+    speed: 40,
+    damage: 3,
+    score: 300,
+    radius: 42,
+    color: '#ff2e63',
+    stripsPowerups: false,
+    armor: 0,
+    maxArmor: 0,
+    weaveInterval: 0,
+    weaveTimer: 0,
+    shootInterval: 0,
+    shootTimer: 0,
+    hitFlash: 0,
+    age: 0,
+    ...over,
+  };
+}
 
 /** Advances a fresh game a few seconds, auto-skipping upgrade screens. */
 function play(game: Game, steps: number) {
@@ -101,5 +130,65 @@ describe('roguelite upgrade choice', () => {
     game.update(1 / 60);
     expect(game.phase).toBe('playing');
     expect(game.offers.length).toBe(0);
+  });
+});
+
+describe('boss fights', () => {
+  it('a boss holds at its line instead of crossing the goal', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.enemies.length = 0;
+    game.enemies.push(makeBoss());
+    game.spawner.bossPending = true;
+    const hp0 = game.player.health;
+
+    for (let i = 0; i < 300; i += 1) game.update(1 / 60); // ~5s
+
+    const boss = game.enemies.find((e) => e.kind === 'boss');
+    expect(boss).toBeDefined();
+    expect(boss!.y).toBeLessThanOrEqual(BOSS.holdY + 1);
+    // It attacks with shots rather than melting the player by contact.
+    expect(game.player.health).toBe(hp0);
+  });
+
+  it('a boss wave stays active until the boss is destroyed', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.enemies.length = 0;
+    game.enemies.push(makeBoss({ y: BOSS.holdY }));
+    game.spawner.bossPending = true;
+    game.spawner.phase = 'active';
+    game.spawner.phaseElapsed = 99999;
+
+    game.update(1 / 60);
+    expect(game.spawner.phase).toBe('active');
+    expect(game.phase).not.toBe('choosing');
+  });
+
+  it('destroying the boss clears the gate and heals the player', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.enemies.length = 0;
+    const boss = makeBoss({ y: BOSS.holdY, hp: 1, weaveTimer: 5, shootTimer: 5 });
+    game.enemies.push(boss);
+    game.spawner.bossPending = true;
+    game.player.health = 2;
+    game.projectiles.push({
+      id: 99,
+      lane: boss.lane,
+      x: boss.x,
+      y: boss.y,
+      radius: 8,
+      damage: 10,
+      color: '#fff',
+      speed: 900,
+      pierce: false,
+      hitIds: new Set(),
+    });
+
+    game.update(1 / 60);
+    expect(game.enemies.find((e) => e.kind === 'boss')).toBeUndefined();
+    expect(game.spawner.bossPending).toBe(false);
+    expect(game.player.health).toBe(3);
   });
 });

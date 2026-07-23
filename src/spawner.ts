@@ -37,6 +37,9 @@ export class Spawner {
   /** Seconds elapsed in the current phase, used for the HUD wave bar. */
   phaseElapsed = 0;
 
+  /** True while a boss is alive; a boss wave cannot end until it is cleared. */
+  bossPending = false;
+
   private enemyTimer = 0;
   private pickupTimer = POWERUP.interval * 0.6;
 
@@ -44,6 +47,7 @@ export class Spawner {
     this.wave = 1;
     this.phase = 'active';
     this.phaseElapsed = 0;
+    this.bossPending = false;
     this.enemyTimer = 0;
     this.pickupTimer = POWERUP.interval * 0.6;
   }
@@ -78,6 +82,7 @@ export class Spawner {
     if (this.isBossWave) {
       const boss = ENEMY_DEFS.find((d) => d.kind === 'boss');
       if (boss) {
+        this.bossPending = true;
         out.enemies.push({
           def: boss,
           lane: randInt(0, LANE_COUNT) as LaneIndex,
@@ -115,7 +120,8 @@ export class Spawner {
         }
       }
 
-      if (this.phaseElapsed >= WAVE.duration) {
+      // A boss wave stays active until its boss is destroyed.
+      if (this.phaseElapsed >= WAVE.duration && !this.bossPending) {
         out.waveCleared = this.wave;
         this.phase = 'breather';
         this.phaseElapsed = 0;

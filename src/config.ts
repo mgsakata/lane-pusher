@@ -233,6 +233,24 @@ export const WEAVE = {
   slideSpeed: 520,
 };
 
+/**
+ * Boss behavior. A boss descends to `holdY`, then holds there and attacks
+ * instead of crossing the goal: it switches lanes and fires shot bursts. Below
+ * `enrageAt` health it speeds up and fires both lanes. The boss wave does not
+ * end until the boss is destroyed.
+ */
+export const BOSS = {
+  holdY: 200,
+  descendSpeed: 95,
+  fireInterval: 1.5,
+  fireIntervalEnraged: 0.75,
+  weaveInterval: 2.6,
+  weaveIntervalEnraged: 1.4,
+  enrageAt: 0.5,
+  shotRadius: 9,
+  shotDamage: 1,
+};
+
 /** A dying splitter bursts into this many runners in the same lane. */
 export const SPLITTER_CHILDREN = 2;
 

@@ -1,5 +1,6 @@
 import {
   ABILITY,
+  BOSS,
   COLORS,
   ENEMY_DEFS,
   ENEMY_SHOT,
@@ -525,10 +526,15 @@ export class Game {
     const enemyScale = enemySpeedFactor(this.effects.level('slow'));
 
     for (const enemy of this.enemies) {
-      enemy.y += enemy.speed * enemyScale * dt;
       enemy.age += dt;
       enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
 
+      if (enemy.kind === 'boss') {
+        this.updateBoss(enemy, dt, enemyScale);
+        continue;
+      }
+
+      enemy.y += enemy.speed * enemyScale * dt;
       if (enemy.kind === 'weaver') this.updateWeaver(enemy, dt, enemyScale);
       if (enemy.kind === 'shooter') this.updateShooter(enemy, dt, enemyScale);
     }
@@ -596,6 +602,48 @@ export class Game {
       damage: ENEMY_SHOT.damage,
     });
     this.events.emit('enemyFire', { lane: enemy.lane });
+  }
+
+  /**
+   * A boss descends to its hold line, then attacks instead of crossing the
+   * goal: it switches lanes and fires shot bursts, enraging below half health.
+   */
+  private updateBoss(boss: Enemy, dt: number, scale: number) {
+    if (boss.y < BOSS.holdY) {
+      boss.y += BOSS.descendSpeed * scale * dt;
+      return;
+    }
+    boss.y = BOSS.holdY;
+
+    const enraged = boss.hp <= boss.maxHp * BOSS.enrageAt;
+
+    boss.weaveTimer -= dt * scale;
+    if (boss.weaveTimer <= 0) {
+      boss.weaveTimer += enraged ? BOSS.weaveIntervalEnraged : BOSS.weaveInterval;
+      boss.lane = (boss.lane === 0 ? 1 : 0) as LaneIndex;
+    }
+    const target = laneCenterX(boss.lane);
+    const step = WEAVE.slideSpeed * dt;
+    const delta = target - boss.x;
+    boss.x = Math.abs(delta) <= step ? target : boss.x + Math.sign(delta) * step;
+
+    boss.shootTimer -= dt * scale;
+    if (boss.shootTimer <= 0) {
+      boss.shootTimer += enraged ? BOSS.fireIntervalEnraged : BOSS.fireInterval;
+      // Enraged, the boss fires down both lanes at once.
+      const lanes: LaneIndex[] = enraged ? [0, 1] : [boss.lane];
+      for (const lane of lanes) {
+        this.enemyShots.push({
+          id: this.nextId++,
+          lane,
+          x: laneCenterX(lane),
+          y: boss.y + boss.radius,
+          radius: BOSS.shotRadius,
+          damage: BOSS.shotDamage,
+        });
+        this.events.emit('enemyFire', { lane });
+      }
+    }
   }
 
   // ---------------------------------------------------------- collisions
@@ -689,6 +737,17 @@ export class Game {
     });
 
     if (enemy.kind === 'splitter') this.splitEnemy(enemy);
+    if (enemy.kind === 'boss') this.defeatBoss(enemy);
+  }
+
+  /** Clearing the boss ends the boss wave, drops its shots, and rewards a heal. */
+  private defeatBoss(boss: Enemy) {
+    this.spawner.bossPending = false;
+    this.enemyShots = [];
+    this.shake = FX.shakeOnHit * 1.6;
+    this.burst(boss.x, boss.y, boss.color, 40, 360);
+    this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
+    this.addFloater(laneCenterX(0.5), BOSS.holdY, 'BOSS DOWN', boss.color);
   }
 
   /** A dying splitter releases runners that continue from where it fell. */

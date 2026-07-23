@@ -1,5 +1,6 @@
 import {
   ABILITY,
+  BOSS,
   COLORS,
   FIELD_MARGIN,
   GOAL_LINE_Y,
@@ -38,6 +39,7 @@ export function render(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.restore();
 
   drawHud(ctx, game);
+  drawBossBar(ctx, game);
   if (game.phase === 'title') drawTitle(ctx, game);
   if (game.phase === 'gameover') drawGameOver(ctx, game);
   if (game.phase === 'choosing') drawChoice(ctx, game);
@@ -379,6 +381,32 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
   if (game.phase === 'playing' || game.phase === 'choosing') {
     drawAbility(ctx, game);
   }
+}
+
+function drawBossBar(ctx: CanvasRenderingContext2D, game: Game) {
+  const boss = game.enemies.find((e) => e.kind === 'boss');
+  if (!boss) return;
+
+  const frac = Math.max(0, boss.hp / boss.maxHp);
+  const enraged = boss.hp <= boss.maxHp * BOSS.enrageAt;
+  const w = WIDTH - 120;
+  const x = 60;
+  const y = 66;
+  const h = 10;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = enraged ? '#ff2e63' : boss.color;
+  ctx.fillRect(x, y, w * frac, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, w, h);
+
+  ctx.fillStyle = enraged ? '#ff2e63' : COLORS.text;
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(enraged ? 'BOSS · ENRAGED' : 'BOSS', WIDTH / 2, y - 3);
 }
 
 function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
