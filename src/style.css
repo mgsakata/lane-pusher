@@ -1,0 +1,32 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #06090e;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+#game {
+  display: block;
+  border-radius: 10px;
+  /* Stops mobile browsers from scrolling or zooming on a lane tap. */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 0 60px rgba(0, 229, 255, 0.08);
+}
