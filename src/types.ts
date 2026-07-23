@@ -1,6 +1,12 @@
 export type LaneIndex = 0 | 1;
 
-export type EnemyKind = 'grunt' | 'runner' | 'brute' | 'splitter' | 'boss';
+export type EnemyKind =
+  | 'grunt'
+  | 'runner'
+  | 'brute'
+  | 'splitter'
+  | 'boss'
+  | 'hazard';
 
 /** Static definition of an enemy archetype. Instances are scaled by wave. */
 export interface EnemyDef {
@@ -17,6 +23,12 @@ export interface EnemyDef {
   minWave: number;
   /** Relative spawn weight once unlocked. */
   weight: number;
+  /**
+   * A hazard: it cannot be shot (projectiles pass through) and deals no HP
+   * damage. Instead, reaching the player strips all active buffs. Dodge it by
+   * being in the other lane.
+   */
+  stripsPowerups?: boolean;
 }
 
 export interface Enemy {
@@ -32,6 +44,8 @@ export interface Enemy {
   score: number;
   radius: number;
   color: string;
+  /** Copied from the def: a hazard strips buffs instead of dealing damage. */
+  stripsPowerups: boolean;
   /** Seconds left on the white hit-flash overlay. */
   hitFlash: number;
   /** Seconds since spawn, used for idle wobble. */
@@ -49,8 +63,11 @@ export type PowerUpKind =
 export interface PowerUpDef {
   kind: PowerUpKind;
   label: string;
-  /** Seconds the effect lasts. Zero means it applies instantly. */
-  duration: number;
+  /**
+   * 'buff' effects persist until a hazard strips them; 'instant' effects
+   * (heal, shield) apply the moment they are collected.
+   */
+  type: 'buff' | 'instant';
   color: string;
   weight: number;
 }

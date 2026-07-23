@@ -111,6 +111,11 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
 }
 
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
+  if (enemy.kind === 'hazard') {
+    drawHazard(ctx, enemy);
+    return;
+  }
+
   const wobble = Math.sin(enemy.age * 6) * 2;
   const x = enemy.x + wobble;
   const { y, radius } = enemy;
@@ -153,6 +158,36 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
   ctx.restore();
 
   if (enemy.maxHp > 1) drawHealthBar(ctx, x, y - radius - 10, radius, enemy);
+}
+
+/** A hazard reads as a spinning warning ring with a cross — clearly "avoid". */
+function drawHazard(ctx: CanvasRenderingContext2D, enemy: Enemy) {
+  const { x, y, radius } = enemy;
+  const pulse = 1 + Math.sin(enemy.age * 9) * 0.12;
+  const r = radius * pulse;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(enemy.age * 2.2);
+  ctx.shadowColor = enemy.color;
+  ctx.shadowBlur = 20;
+  ctx.strokeStyle = enemy.color;
+  ctx.lineWidth = 3.5;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Spokes make the rotation legible and reinforce the hazard read.
+  const spoke = r * 0.62;
+  for (let i = 0; i < 4; i += 1) {
+    const a = (Math.PI / 2) * i + Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * spoke * 0.4, Math.sin(a) * spoke * 0.4);
+    ctx.lineTo(Math.cos(a) * spoke, Math.sin(a) * spoke);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawHealthBar(
@@ -299,18 +334,29 @@ function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
 }
 
 function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
-  const active = game.effects.active();
-  if (active.length === 0) return;
+  const buffs = game.effects.list();
+  if (buffs.length === 0) return;
 
+  // Held buffs read as a stack of chips; they persist until a hazard strips them.
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 12px system-ui, sans-serif';
 
-  let y = HEIGHT - 34 + 7;
-  for (const { def, remaining } of active) {
+  const padX = 8;
+  const chipH = 20;
+  const gap = 6;
+  let y = HEIGHT - 30;
+
+  for (const def of buffs) {
+    const w = ctx.measureText(def.label).width + padX * 2;
+    const x = WIDTH - 16 - w;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(x, y - chipH / 2, w, chipH);
     ctx.fillStyle = def.color;
-    ctx.fillText(`${def.label} ${remaining.toFixed(1)}s`, WIDTH - 16, y);
-    y -= 18;
+    ctx.fillRect(x, y - chipH / 2, 3, chipH);
+    ctx.fillStyle = def.color;
+    ctx.fillText(def.label, WIDTH - 16 - padX, y);
+    y -= chipH + gap;
   }
 }
 
@@ -333,9 +379,16 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game) {
     '14px',
     COLORS.textDim,
   );
-  centered(ctx, 'PRESS SPACE OR TAP TO START', HEIGHT / 2 + 70, 'bold 16px', COLORS.text);
+  centered(
+    ctx,
+    'Power-ups are permanent — dodge the pink dampeners.',
+    HEIGHT / 2 + 32,
+    '14px',
+    '#ff5cf0',
+  );
+  centered(ctx, 'PRESS SPACE OR TAP TO START', HEIGHT / 2 + 78, 'bold 16px', COLORS.text);
   if (game.bestScore > 0) {
-    centered(ctx, `BEST ${game.bestScore}`, HEIGHT / 2 + 104, '14px', COLORS.textDim);
+    centered(ctx, `BEST ${game.bestScore}`, HEIGHT / 2 + 112, '14px', COLORS.textDim);
   }
 }
 

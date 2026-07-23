@@ -9,26 +9,19 @@ export interface InstantEffect {
 }
 
 /**
- * Tracks which timed power-ups are running and how long they have left.
- * Instant power-ups (HEAL, SHLD) are reported back to the game instead of
- * being stored here, since they change player state rather than weapon state.
+ * Tracks which buffs are currently held. Buffs persist indefinitely once
+ * collected and are only lost when a hazard strips them. Instant power-ups
+ * (HEAL, SHLD) are reported back to the game instead of being stored here,
+ * since they change player state rather than weapon state.
  */
 export class Effects {
-  private remainingByKind = new Map<PowerUpKind, number>();
+  private held = new Set<PowerUpKind>();
 
-  update(dt: number) {
-    for (const [kind, remaining] of this.remainingByKind) {
-      const next = remaining - dt;
-      if (next <= 0) this.remainingByKind.delete(kind);
-      else this.remainingByKind.set(kind, next);
-    }
-  }
-
-  /** Applies a pickup. Re-collecting a timed power-up refreshes its duration. */
+  /** Applies a pickup. Collecting a buff you already hold is a no-op. */
   apply(kind: PowerUpKind): InstantEffect {
     const def = defFor(kind);
-    if (def.duration > 0) {
-      this.remainingByKind.set(kind, def.duration);
+    if (def.type === 'buff') {
+      this.held.add(kind);
       return { heal: 0, shieldCharges: 0 };
     }
     return {
@@ -38,22 +31,23 @@ export class Effects {
   }
 
   isActive(kind: PowerUpKind): boolean {
-    return this.remainingByKind.has(kind);
+    return this.held.has(kind);
   }
 
-  remaining(kind: PowerUpKind): number {
-    return this.remainingByKind.get(kind) ?? 0;
+  /** Active buffs in a stable order, for the HUD. */
+  list(): PowerUpDef[] {
+    return POWERUP_DEFS.filter((d) => this.held.has(d.kind));
   }
 
-  /** Active timed effects, longest-remaining first, for the HUD. */
-  active(): Array<{ def: PowerUpDef; remaining: number }> {
-    return [...this.remainingByKind.entries()]
-      .map(([kind, remaining]) => ({ def: defFor(kind), remaining }))
-      .sort((a, b) => b.remaining - a.remaining);
+  /** Clears every held buff and returns how many were lost. */
+  stripAll(): number {
+    const lost = this.held.size;
+    this.held.clear();
+    return lost;
   }
 
   reset() {
-    this.remainingByKind.clear();
+    this.held.clear();
   }
 }
 

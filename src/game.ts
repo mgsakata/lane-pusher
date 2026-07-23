@@ -107,7 +107,6 @@ export class Game {
       this.player.lane = clamp(laneTarget, 0, LANE_COUNT - 1) as LaneIndex;
     }
 
-    this.effects.update(dt);
     this.updatePlayer(dt);
     this.fireWeapon(dt);
     this.runSpawner(dt);
@@ -209,6 +208,7 @@ export class Game {
       score: def.score,
       radius: def.radius,
       color: def.color,
+      stripsPowerups: def.stripsPowerups ?? false,
       hitFlash: 0,
       age: 0,
     });
@@ -280,6 +280,8 @@ export class Game {
     for (const projectile of this.projectiles) {
       for (const enemy of this.enemies) {
         if (enemy.hp <= 0) continue;
+        // Hazards cannot be shot; projectiles pass straight through them.
+        if (enemy.stripsPowerups) continue;
         if (enemy.lane !== projectile.lane) continue;
         if (projectile.hitIds.has(enemy.id)) continue;
         if (Math.abs(enemy.y - projectile.y) > enemy.radius + projectile.radius) {
@@ -382,8 +384,21 @@ export class Game {
       const hitsPlayer =
         enemy.lane === this.player.lane &&
         Math.abs(enemy.y - PLAYER.y) < enemy.radius + PLAYER.radius;
+      const breachedGoal = enemy.y - enemy.radius > GOAL_LINE_Y;
 
-      if (hitsPlayer || enemy.y - enemy.radius > GOAL_LINE_Y) {
+      if (enemy.stripsPowerups) {
+        // A hazard only matters on direct contact. Reaching the goal in the
+        // other lane means you dodged it, so it simply leaves.
+        if (hitsPlayer) {
+          this.stripPlayer(enemy);
+          removed.add(enemy.id);
+        } else if (breachedGoal) {
+          removed.add(enemy.id);
+        }
+        continue;
+      }
+
+      if (hitsPlayer || breachedGoal) {
         this.damagePlayer(enemy.damage);
         this.burst(enemy.x, enemy.y, enemy.color, 8, 200);
         removed.add(enemy.id);
@@ -393,6 +408,26 @@ export class Game {
     if (removed.size > 0) {
       this.enemies = this.enemies.filter((e) => !removed.has(e.id));
     }
+  }
+
+  /** A hazard reaching the player wipes their buffs, unless a shield absorbs it. */
+  private stripPlayer(source: Enemy) {
+    if (this.player.shieldCharges > 0) {
+      this.player.shieldCharges -= 1;
+      this.addFloater(this.player.x, PLAYER.y - 34, 'BLOCKED', COLORS.shield);
+      this.burst(source.x, source.y, COLORS.shield, 12, 220);
+      return;
+    }
+
+    const lost = this.effects.stripAll();
+    this.shake = FX.shakeOnHit;
+    this.burst(this.player.x, PLAYER.y, source.color, 18, 260);
+    this.addFloater(
+      this.player.x,
+      PLAYER.y - 34,
+      lost > 0 ? 'DAMPENED!' : 'DAMPENER',
+      source.color,
+    );
   }
 
   private damagePlayer(amount: number) {

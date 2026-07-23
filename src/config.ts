@@ -104,6 +104,20 @@ export const ENEMY_DEFS: EnemyDef[] = [
     minWave: 999,
     weight: 0,
   },
+  {
+    kind: 'hazard',
+    // Unshootable and unkillable, so hp is nominal and never depleted.
+    hp: 1,
+    speed: 130,
+    // Deals no HP damage; its threat is stripping your buffs on contact.
+    damage: 0,
+    score: 0,
+    radius: 22,
+    color: '#ff5cf0',
+    minWave: 2,
+    weight: 4,
+    stripsPowerups: true,
+  },
 ];
 
 /** A dying splitter bursts into this many runners in the same lane. */
@@ -135,12 +149,12 @@ export const WAVE = {
 // --------------------------------------------------------------- power-ups
 
 export const POWERUP_DEFS: PowerUpDef[] = [
-  { kind: 'rapid', label: 'RAPID', duration: 8, color: '#4cc9f0', weight: 10 },
-  { kind: 'double', label: 'DUAL', duration: 10, color: '#f72585', weight: 8 },
-  { kind: 'shield', label: 'SHLD', duration: 0, color: '#4361ee', weight: 7 },
-  { kind: 'heal', label: 'HEAL', duration: 0, color: '#3ddc97', weight: 5 },
-  { kind: 'pierce', label: 'PIER', duration: 8, color: '#ffd60a', weight: 7 },
-  { kind: 'slow', label: 'SLOW', duration: 6, color: '#b8c0ff', weight: 5 },
+  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#4cc9f0', weight: 10 },
+  { kind: 'double', label: 'DUAL', type: 'buff', color: '#f72585', weight: 8 },
+  { kind: 'shield', label: 'SHLD', type: 'instant', color: '#4361ee', weight: 7 },
+  { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
+  { kind: 'pierce', label: 'PIER', type: 'buff', color: '#ffd60a', weight: 7 },
+  { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5 },
 ];
 
 export const POWERUP = {
