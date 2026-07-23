@@ -105,6 +105,11 @@ export interface PowerUpDef {
   type: 'buff' | 'instant';
   color: string;
   weight: number;
+  /**
+   * Highest level a buff can reach by re-collecting it. Defaults to 1 (a plain
+   * on/off buff). Leveled buffs scale their effect with level.
+   */
+  maxLevel?: number;
 }
 
 export interface Pickup {

@@ -14,6 +14,12 @@ import {
   WEAVE,
   laneCenterX,
 } from './config';
+import {
+  droneShots,
+  enemySpeedFactor,
+  weaponCooldown,
+  weaponDamage,
+} from './balance';
 import { Input } from './input';
 import { Effects } from './powerups';
 import { Spawner, type EnemySpawn, type PickupSpawn } from './spawner';
@@ -137,14 +143,10 @@ export class Game {
     this.player.fireCooldown -= dt;
     if (this.player.fireCooldown > 0) return;
 
-    const cooldown = this.effects.isActive('rapid')
-      ? WEAPON.cooldown * POWERUP.rapidCooldownScale
-      : WEAPON.cooldown;
-    this.player.fireCooldown += cooldown;
+    this.player.fireCooldown += weaponCooldown(this.effects.level('rapid'));
 
     const pierce = this.effects.isActive('pierce');
-    const damage =
-      WEAPON.damage + (this.effects.isActive('power') ? POWERUP.powerBonus : 0);
+    const damage = weaponDamage(this.effects.level('power'));
 
     this.spawnProjectile(this.player.lane, pierce, damage, this.player.x);
 
@@ -154,13 +156,17 @@ export class Game {
       this.spawnProjectile(other, pierce, damage, laneCenterX(other));
     }
 
-    if (this.effects.isActive('drone')) {
-      // The companion adds a second shot in your lane, offset to its side.
+    // Each DRONE level adds a companion shot in your lane, fanned out to the
+    // sides so higher levels visibly widen your fire.
+    const drones = droneShots(this.effects.level('drone'));
+    for (let i = 0; i < drones; i += 1) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const rank = Math.floor(i / 2) + 1;
       this.spawnProjectile(
         this.player.lane,
         pierce,
         damage,
-        this.player.x + POWERUP.droneOffsetX,
+        this.player.x + side * POWERUP.droneOffsetX * rank,
       );
     }
   }
@@ -260,7 +266,7 @@ export class Game {
   // -------------------------------------------------------------- motion
 
   private moveEntities(dt: number) {
-    const enemyScale = this.effects.isActive('slow') ? POWERUP.slowFactor : 1;
+    const enemyScale = enemySpeedFactor(this.effects.level('slow'));
 
     for (const enemy of this.enemies) {
       enemy.y += enemy.speed * enemyScale * dt;

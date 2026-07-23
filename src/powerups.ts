@@ -10,20 +10,29 @@ export interface InstantEffect {
   bomb: boolean;
 }
 
+/** A held buff and the level it has reached, for the HUD. */
+export interface ActiveBuff {
+  def: PowerUpDef;
+  level: number;
+}
+
 /**
- * Tracks which buffs are currently held. Buffs persist indefinitely once
- * collected and are only lost when a hazard strips them. Instant power-ups
- * (HEAL, SHLD) are reported back to the game instead of being stored here,
- * since they change player state rather than weapon state.
+ * Tracks held buffs and their levels. Buffs persist indefinitely once
+ * collected and are only lost when a hazard strips them; re-collecting a
+ * leveled buff raises its level up to the def's maxLevel. Instant power-ups
+ * (HEAL, SHLD, BOMB) are reported back to the game instead of being stored
+ * here, since they change player state rather than weapon state.
  */
 export class Effects {
-  private held = new Set<PowerUpKind>();
+  private levels = new Map<PowerUpKind, number>();
 
-  /** Applies a pickup. Collecting a buff you already hold is a no-op. */
+  /** Applies a pickup. Re-collecting a buff raises its level up to maxLevel. */
   apply(kind: PowerUpKind): InstantEffect {
     const def = defFor(kind);
     if (def.type === 'buff') {
-      this.held.add(kind);
+      const max = def.maxLevel ?? 1;
+      const next = Math.min((this.levels.get(kind) ?? 0) + 1, max);
+      this.levels.set(kind, next);
       return { heal: 0, shieldCharges: 0, bomb: false };
     }
     return {
@@ -33,24 +42,32 @@ export class Effects {
     };
   }
 
+  /** Current level of a buff, or 0 if it is not held. */
+  level(kind: PowerUpKind): number {
+    return this.levels.get(kind) ?? 0;
+  }
+
   isActive(kind: PowerUpKind): boolean {
-    return this.held.has(kind);
+    return (this.levels.get(kind) ?? 0) > 0;
   }
 
   /** Active buffs in a stable order, for the HUD. */
-  list(): PowerUpDef[] {
-    return POWERUP_DEFS.filter((d) => this.held.has(d.kind));
+  list(): ActiveBuff[] {
+    return POWERUP_DEFS.filter((d) => this.levels.has(d.kind)).map((def) => ({
+      def,
+      level: this.levels.get(def.kind) ?? 0,
+    }));
   }
 
   /** Clears every held buff and returns how many were lost. */
   stripAll(): number {
-    const lost = this.held.size;
-    this.held.clear();
+    const lost = this.levels.size;
+    this.levels.clear();
     return lost;
   }
 
   reset() {
-    this.held.clear();
+    this.levels.clear();
   }
 }
 

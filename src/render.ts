@@ -110,18 +110,21 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.globalAlpha = 1;
   }
 
-  // The DRONE companion hovers at the player's side and bobs gently.
-  if (game.effects.isActive('drone')) {
-    const bob = Math.sin(game.elapsed * 8) * 3;
-    const dx = x + 30;
-    const dy = y + 6 + bob;
+  // One DRONE companion per level hovers at the player's sides and bobs.
+  const droneLevel = game.effects.level('drone');
+  if (droneLevel > 0) {
     ctx.save();
     ctx.fillStyle = '#2ec4b6';
     ctx.shadowColor = '#2ec4b6';
     ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(dx, dy, 7, 0, Math.PI * 2);
-    ctx.fill();
+    for (let i = 0; i < droneLevel; i += 1) {
+      const side = i % 2 === 0 ? 1 : -1;
+      const rank = Math.floor(i / 2) + 1;
+      const bob = Math.sin(game.elapsed * 8 + i) * 3;
+      ctx.beginPath();
+      ctx.arc(x + side * 26 * rank, y + 6 + bob, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 }
@@ -406,15 +409,18 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   const gap = 6;
   let y = HEIGHT - 30;
 
-  for (const def of buffs) {
-    const w = ctx.measureText(def.label).width + padX * 2;
+  for (const { def, level } of buffs) {
+    // Leveled buffs show their level so upgrades are visible; on/off buffs don't.
+    const maxLevel = def.maxLevel ?? 1;
+    const text = maxLevel > 1 ? `${def.label} ${level}` : def.label;
+    const w = ctx.measureText(text).width + padX * 2;
     const x = WIDTH - 16 - w;
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(x, y - chipH / 2, w, chipH);
     ctx.fillStyle = def.color;
     ctx.fillRect(x, y - chipH / 2, 3, chipH);
     ctx.fillStyle = def.color;
-    ctx.fillText(def.label, WIDTH - 16 - padX, y);
+    ctx.fillText(text, WIDTH - 16 - padX, y);
     y -= chipH + gap;
   }
 }

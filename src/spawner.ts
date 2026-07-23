@@ -1,3 +1,8 @@
+import {
+  spawnInterval,
+  waveHpMultiplier,
+  waveSpeedMultiplier,
+} from './balance';
 import { ENEMY_DEFS, LANE_COUNT, POWERUP, WAVE } from './config';
 import { randomPowerUpDef } from './powerups';
 import type { EnemyDef, LaneIndex, PowerUpDef } from './types';
@@ -59,20 +64,15 @@ export class Spawner {
   }
 
   get hpMultiplier(): number {
-    return 1 + (this.wave - 1) * WAVE.hpGrowth;
+    return waveHpMultiplier(this.wave);
   }
 
   get speedMultiplier(): number {
-    return Math.min(
-      WAVE.maxSpeedMultiplier,
-      1 + (this.wave - 1) * WAVE.speedGrowth,
-    );
+    return waveSpeedMultiplier(this.wave);
   }
 
   private get spawnInterval(): number {
-    const scaled =
-      WAVE.baseSpawnInterval * Math.pow(WAVE.spawnIntervalDecay, this.wave - 1);
-    return Math.max(WAVE.minSpawnInterval, scaled);
+    return spawnInterval(this.wave);
   }
 
   /** Called once at the start of each wave's active phase. */

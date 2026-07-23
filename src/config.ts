@@ -198,14 +198,14 @@ export const WAVE = {
 // --------------------------------------------------------------- power-ups
 
 export const POWERUP_DEFS: PowerUpDef[] = [
-  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#4cc9f0', weight: 10 },
+  { kind: 'rapid', label: 'RAPID', type: 'buff', color: '#4cc9f0', weight: 10, maxLevel: 3 },
   { kind: 'double', label: 'DUAL', type: 'buff', color: '#f72585', weight: 8 },
   { kind: 'shield', label: 'SHLD', type: 'instant', color: '#4361ee', weight: 7 },
   { kind: 'heal', label: 'HEAL', type: 'instant', color: '#3ddc97', weight: 5 },
   { kind: 'pierce', label: 'PIER', type: 'buff', color: '#ffd60a', weight: 7 },
-  { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5 },
-  { kind: 'power', label: 'PWR', type: 'buff', color: '#ff9f1c', weight: 8 },
-  { kind: 'drone', label: 'DRONE', type: 'buff', color: '#2ec4b6', weight: 6 },
+  { kind: 'slow', label: 'SLOW', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
+  { kind: 'power', label: 'PWR', type: 'buff', color: '#ff9f1c', weight: 8, maxLevel: 3 },
+  { kind: 'drone', label: 'DRONE', type: 'buff', color: '#2ec4b6', weight: 6, maxLevel: 3 },
   { kind: 'magnet', label: 'MAG', type: 'buff', color: '#c77dff', weight: 5 },
   { kind: 'bomb', label: 'BOMB', type: 'instant', color: '#ef476f', weight: 4 },
 ];
@@ -218,17 +218,21 @@ export const POWERUP = {
   radius: 18,
   /** Pickups drift down slower than enemies so they are catchable. */
   speed: 90,
-  /** Fire-rate multiplier while RAPID is active (lower cooldown = faster). */
-  rapidCooldownScale: 0.45,
-  /** Enemy speed multiplier while SLOW is active. */
-  slowFactor: 0.45,
   /** Hits absorbed by a single SHLD pickup. */
   shieldCharges: 2,
   healAmount: 1,
-  /** Extra weapon damage while PWR is held. */
-  powerBonus: 1,
-  /** Horizontal offset of the DRONE companion from the player. */
-  droneOffsetX: 30,
+  /** Horizontal offset of each DRONE companion from the player. */
+  droneOffsetX: 26,
+
+  // Leveled buffs. Index by level; index 0 is the "not held" baseline.
+  /** Fire cooldown multiplier per RAPID level (lower = faster). */
+  rapidCooldownByLevel: [1, 0.6, 0.42, 0.3],
+  /** Bonus weapon damage per PWR level. */
+  powerBonusByLevel: [0, 1, 2, 3],
+  /** Enemy speed multiplier per SLOW level. */
+  slowFactorByLevel: [1, 0.6, 0.45, 0.33],
+  /** Extra shots fired per DRONE level. */
+  droneShotsByLevel: [0, 1, 2, 3],
 };
 
 // ---------------------------------------------------------------- scoring
