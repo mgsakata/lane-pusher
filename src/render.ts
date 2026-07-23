@@ -399,29 +399,41 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   const buffs = game.effects.list();
   if (buffs.length === 0) return;
 
-  // Held buffs read as a stack of chips; they persist until a hazard strips them.
-  ctx.textAlign = 'right';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 12px system-ui, sans-serif';
 
   const padX = 8;
-  const chipH = 20;
-  const gap = 6;
-  let y = HEIGHT - 30;
+  const chipH = 18;
+  const gapX = 6;
+  const gapY = 5;
+  const rightEdge = WIDTH - 16;
+  const leftLimit = 16;
 
-  for (const { def, level } of buffs) {
-    // Leveled buffs show their level so upgrades are visible; on/off buffs don't.
+  // Held buffs read as chips laid out in the HUD strip below the goal line, so
+  // they never overlap the lanes where enemies and the player actually are.
+  // They flow right-to-left and wrap upward only if a row overflows.
+  const chips = buffs.map(({ def, level }) => {
     const maxLevel = def.maxLevel ?? 1;
-    const text = maxLevel > 1 ? `${def.label} ${level}` : def.label;
-    const w = ctx.measureText(text).width + padX * 2;
-    const x = WIDTH - 16 - w;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(x, y - chipH / 2, w, chipH);
-    ctx.fillStyle = def.color;
-    ctx.fillRect(x, y - chipH / 2, 3, chipH);
-    ctx.fillStyle = def.color;
-    ctx.fillText(text, WIDTH - 16 - padX, y);
-    y -= chipH + gap;
+    const suffix = level >= maxLevel ? 'MAX' : `${level}`;
+    const label = maxLevel > 1 ? `${def.label} ${suffix}` : def.label;
+    return { def, label, w: ctx.measureText(label).width + padX * 2 };
+  });
+
+  let x = rightEdge;
+  let y = HEIGHT - 54;
+  for (const chip of chips) {
+    if (x - chip.w < leftLimit) {
+      x = rightEdge;
+      y -= chipH + gapY;
+    }
+    const cx = x - chip.w;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(cx, y - chipH / 2, chip.w, chipH);
+    ctx.fillStyle = chip.def.color;
+    ctx.fillRect(cx, y - chipH / 2, 3, chipH);
+    ctx.fillText(chip.label, cx + padX, y);
+    x = cx - gapX;
   }
 }
 
