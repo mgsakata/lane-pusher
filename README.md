@@ -44,8 +44,10 @@ You fire automatically. Nothing gets past the line.
 - **Enemies** — grunts, runners, brutes, splitters, weavers, armored, shooters,
   dashers, and phantoms, each distinct by shape and motion. Shooters and bosses
   telegraph their attacks before firing.
-- **Elites** — a gold **warden** shields every enemy in its lane from a killing
-  blow until you take the warden down first.
+- **Elites** — a gold **warden** shields the **opposite** lane: enemies there
+  can't be killed until you cross into the warden's lane and take it down (it's
+  always reachable, so any weapon works). Only one warden is on the field at a
+  time.
 - **Boss fights** — every fifth wave; bosses hold and attack in patterns —
   aiming down a lane, then slamming both at once on a telegraphed beat — and
   enrage below half health.

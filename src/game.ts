@@ -330,6 +330,8 @@ export class Game {
   // ------------------------------------------------------------ spawning
 
   private runSpawner(dt: number) {
+    // Gate a second warden while one still lives (max one on the field).
+    this.spawner.wardenAlive = this.enemies.some((e) => e.kind === 'warden');
     const tick = this.spawner.update(dt);
 
     for (const spawn of tick.enemies) this.addEnemy(spawn);
@@ -665,14 +667,18 @@ export class Game {
   }
 
   /**
-   * Marks which enemies are shielded by a living WARDEN: any non-warden sharing
-   * a lane with one can be chipped but not killed until the warden falls. Kept
-   * as a per-frame flag so both collisions and rendering read the same state.
+   * Marks which enemies a living WARDEN shields: it protects the OPPOSITE lane,
+   * so enemies there can be chipped but not killed until the warden falls. This
+   * forces a choice — leave the lane you're defending to go kill the warden —
+   * and keeps the warden itself directly reachable in its own (unshielded) lane.
+   * Kept as a per-frame flag so collisions and rendering read the same state.
    */
   private computeWards() {
     const wardedLanes = new Set<LaneIndex>();
     for (const e of this.enemies) {
-      if (e.kind === 'warden' && e.hp > 0) wardedLanes.add(e.lane);
+      if (e.kind === 'warden' && e.hp > 0) {
+        wardedLanes.add((e.lane === 0 ? 1 : 0) as LaneIndex);
+      }
     }
     for (const e of this.enemies) {
       e.warded = e.kind !== 'warden' && wardedLanes.has(e.lane);
@@ -703,7 +709,8 @@ export class Game {
           enemy.armor -= 1;
           this.burst(projectile.x, projectile.y, '#e8edf3', 5, 160);
         } else if (enemy.warded && enemy.hp - projectile.damage <= 0) {
-          // A warden in this lane shields it: chip to 1 HP, never lethal.
+          // A warden shields it: chip to 1 HP, never lethal. (The warden sits in
+          // the OTHER lane, so it's always directly reachable — go kill it.)
           enemy.hp = 1;
           this.burst(projectile.x, projectile.y, '#ffd700', 5, 160);
         } else {

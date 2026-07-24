@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOSS, DASHER, PHANTOM, PLAYER, laneCenterX } from './config';
 import { Emitter } from './events';
 import { Game } from './game';
+import { Spawner } from './spawner';
 import { ScriptedInput } from './testing/sim';
 import type { AbilityKind, Enemy, Pickup, PowerUpKind } from './types';
 
@@ -566,16 +567,18 @@ describe('new enemies', () => {
 });
 
 describe('elite enemies', () => {
-  it('a warden shields lane-mates from a killing blow until it dies', () => {
+  it('a warden shields the OPPOSITE lane from a killing blow until it dies', () => {
     const game = new Game(new ScriptedInput());
     game.start();
-    game.player.lane = 0;
+    game.player.lane = 1;
+    game.player.x = laneCenterX(1);
+    // Warden in lane 0 shields lane 1; the grunt is in lane 1.
     const warden = makeBoss({ id: 1, kind: 'warden', hp: 6, maxHp: 6, y: 300, radius: 24, lane: 0 });
-    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 0 });
+    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 1 });
     game.enemies = [warden, grunt];
-    // A shot that would normally kill the grunt outright.
+    // A shot in lane 1 that would normally kill the grunt outright.
     game.projectiles = [
-      { id: 9, lane: 0, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+      { id: 9, lane: 1, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
     ];
     game.update(1 / 60);
 
@@ -585,18 +588,39 @@ describe('elite enemies', () => {
     expect(grunt.hp).toBe(1);
   });
 
-  it('does not shield enemies in the other lane', () => {
+  it('does not shield enemies in its OWN lane (warden is always reachable)', () => {
     const game = new Game(new ScriptedInput());
     game.start();
-    game.player.lane = 1;
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
     const warden = makeBoss({ id: 1, kind: 'warden', hp: 6, maxHp: 6, y: 300, radius: 24, lane: 0 });
-    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 1 });
+    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 0 });
     game.enemies = [warden, grunt];
     game.projectiles = [
-      { id: 9, lane: 1, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+      { id: 9, lane: 0, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
     ];
     game.update(1 / 60);
-    expect(game.enemies.includes(grunt)).toBe(false); // unshielded → killed
+    expect(game.enemies.includes(grunt)).toBe(false); // same lane as warden → killable
+  });
+
+  it('never rolls a second warden while one is alive', () => {
+    const spawner = new Spawner();
+    spawner.reset();
+    spawner.seed(12345);
+    spawner.wave = 10; // wardens unlocked (minWave 7)
+
+    const roll = () => (spawner as unknown as { rollEnemy(): { kind: string } | undefined }).rollEnemy();
+
+    spawner.wardenAlive = true;
+    let sawWardenWhileAlive = false;
+    for (let i = 0; i < 500; i += 1) if (roll()?.kind === 'warden') sawWardenWhileAlive = true;
+    expect(sawWardenWhileAlive).toBe(false);
+
+    // With none alive, a warden can still appear.
+    spawner.wardenAlive = false;
+    let canSpawn = false;
+    for (let i = 0; i < 3000 && !canSpawn; i += 1) if (roll()?.kind === 'warden') canSpawn = true;
+    expect(canSpawn).toBe(true);
   });
 });
 

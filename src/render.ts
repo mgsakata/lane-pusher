@@ -344,6 +344,23 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
 function drawWarden(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
   const { x, y, radius: r } = e;
 
+  // A gold tether across to the lane it shields, so the link is legible.
+  const oppX = laneCenterX(e.lane === 0 ? 1 : 0);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const beam = 0.35 + Math.sin(e.age * 5) * 0.15;
+  const grad = ctx.createLinearGradient(x, y, oppX, y);
+  grad.addColorStop(0, `rgba(255,215,0,${beam})`);
+  grad.addColorStop(1, 'rgba(255,215,0,0.04)');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(oppX, y);
+  ctx.stroke();
+  ctx.restore();
+
   // Rotating shield ring with nodes.
   ctx.save();
   ctx.translate(x, y);

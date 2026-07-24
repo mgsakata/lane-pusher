@@ -40,6 +40,9 @@ export class Spawner {
   /** True while a boss is alive; a boss wave cannot end until it is cleared. */
   bossPending = false;
 
+  /** Set by the game each frame; blocks a second WARDEN while one is alive. */
+  wardenAlive = false;
+
   private enemyTimer = 0;
   private pickupTimer = POWERUP.interval * 0.6;
 
@@ -57,6 +60,7 @@ export class Spawner {
     this.phase = 'active';
     this.phaseElapsed = 0;
     this.bossPending = false;
+    this.wardenAlive = false;
     this.enemyTimer = 0;
     this.pickupTimer = POWERUP.interval * 0.6;
   }
@@ -163,7 +167,12 @@ export class Spawner {
   private rollEnemy(): EnemyDef | undefined {
     return pickWeighted(
       ENEMY_DEFS,
-      (def) => (this.wave >= def.minWave ? def.weight : 0),
+      (def) => {
+        if (this.wave < def.minWave) return 0;
+        // Only ever one warden on the field at a time.
+        if (def.kind === 'warden' && this.wardenAlive) return 0;
+        return def.weight;
+      },
       this.rng,
     );
   }
