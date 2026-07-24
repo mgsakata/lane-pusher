@@ -62,6 +62,29 @@ In production, one Node server serves both the built game and the API:
 npm start        # builds the game, then serves game + API on :8787
 ```
 
+### Deploying with a persistent leaderboard
+
+The scoreboard is a single SQLite file. By default it's written next to the
+code (`leaderboard.db`), which is fine locally but gets **wiped on every deploy**
+on hosts with an ephemeral filesystem (Railway, Render, Fly, most containers) —
+each release starts from a fresh disk.
+
+To keep scores across releases, put the DB on persistent storage and point the
+server at it with the `LEADERBOARD_DB` env var (its `-wal`/`-shm` siblings follow
+automatically). The server creates the directory on boot and logs the path it
+uses.
+
+On **Railway** specifically:
+
+1. In the service, **Add a Volume** and set its mount path to `/data`.
+2. Add a variable **`LEADERBOARD_DB=/data/leaderboard.db`**.
+3. Redeploy. From now on the DB lives on the volume and survives releases.
+
+The mount path and env var must agree (`/data` → `/data/leaderboard.db`). The
+same pattern works on any host: mount a persistent disk, set `LEADERBOARD_DB` to
+a file on it. Existing scores from the old ephemeral file don't carry over — the
+first deploy on the volume starts fresh, then persists from there on.
+
 ## Tech
 
 - Vanilla **TypeScript** + **HTML5 Canvas**, bundled with **Vite** — no game

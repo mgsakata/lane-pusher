@@ -1,10 +1,19 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+// Point LEADERBOARD_DB at a PERSISTENT path (e.g. a mounted volume like
+// /data/leaderboard.db) so scores survive redeploys. Without it the file lives
+// beside the code, which many hosts (Railway, etc.) wipe on every release.
 const dbPath =
   process.env.LEADERBOARD_DB ?? path.join(here, '..', 'leaderboard.db');
+
+// Ensure the directory exists (a fresh volume mount may be empty).
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+console.log(`leaderboard db: ${dbPath}`);
 
 /** The lightweight file-backed store: one SQLite file. */
 export const db = new Database(dbPath);

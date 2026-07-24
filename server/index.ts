@@ -12,8 +12,13 @@ const distDir = path.join(here, '..', 'dist');
 const PORT = Number(process.env.PORT ?? 8787);
 const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 const MAX_SCORE = 50_000_000;
-/** Loose ceiling used only for an implausibility check (score earned too fast). */
-const MAX_POINTS_PER_SECOND = 3000;
+/**
+ * Loose ceiling used only for an implausibility check (score earned too fast).
+ * Kept generous so a genuine hot streak — GREED x2.5 stacked with a high combo
+ * on a bomb clear — is never rejected; the average over a real run stays far
+ * below this.
+ */
+const MAX_POINTS_PER_SECOND = 6000;
 const MAX_NAME_LENGTH = 12;
 const BOARD_LIMIT = 50;
 
