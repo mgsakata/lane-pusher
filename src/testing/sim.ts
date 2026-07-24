@@ -1,4 +1,4 @@
-import { WEAPON_DEFS } from '../config';
+import { GOAL_LINE_Y, WEAPON_DEFS } from '../config';
 import { Game } from '../game';
 import type { InputSource } from '../input';
 import type { WeaponKind } from '../types';
@@ -101,10 +101,48 @@ export function chooseLane(game: Game): number {
   return urgency[0] > urgency[1] ? 0 : 1;
 }
 
+/**
+ * A "realistic" player: defends the lane with the most imminent threat, but
+ * when nothing is about to breach, ducks over to grab the nearest pickup — so
+ * buffs (and weapon/ability switches) accumulate organically over a run. This
+ * is the autopilot that actually feels pickup frequency.
+ */
+export function chooseLaneRealistic(game: Game): number {
+  const threat = [-Infinity, -Infinity];
+  for (const e of game.enemies) {
+    if (e.stripsPowerups) continue; // dampeners cost no HP; don't chase them
+    if (e.y > threat[e.lane]) threat[e.lane] = e.y;
+  }
+  for (const s of game.enemyShots) {
+    if (s.y > threat[s.lane]) threat[s.lane] = s.y;
+  }
+  // Something close to the goal line takes priority — defend it.
+  if (Math.max(threat[0], threat[1]) > GOAL_LINE_Y - 240) {
+    return threat[0] >= threat[1] ? 0 : 1;
+  }
+  // Otherwise collect the nearest (lowest) pickup.
+  let bestLane = -1;
+  let bestY = -Infinity;
+  for (const p of game.pickups) {
+    if (p.y > bestY) {
+      bestY = p.y;
+      bestLane = p.lane;
+    }
+  }
+  if (bestLane >= 0) return bestLane;
+  return threat[0] >= threat[1] ? 0 : 1;
+}
+
 export interface SimOptions {
   seed: number;
   /** When true, the ship carries a maxed loadout maintained every frame. */
   buffed: boolean;
+  /**
+   * "Realistic" mode: don't force the loadout or strip pickups — let the ship
+   * collect drops and build up buffs organically, using the pickup-seeking
+   * autopilot. Overrides `buffed`. This is the mode that feels drop frequency.
+   */
+  collect?: boolean;
   /** Weapon to max out for the buffed run (default scatter — covers both lanes). */
   weapon?: WeaponKind;
   /** Wall-clock seconds to simulate before giving up (a survival cap). */
@@ -117,6 +155,8 @@ export interface SimResult {
   died: boolean;
   kills: number;
   score: number;
+  /** Distinct buff kinds held at the end (0 unless in collect mode). */
+  buffs: number;
 }
 
 /**
@@ -143,14 +183,20 @@ export function simulate(opts: SimOptions): SimResult {
     const steps = Math.ceil(opts.maxSeconds / dt);
 
     for (let i = 0; i < steps; i += 1) {
-      input.setLane(chooseLane(game));
+      input.setLane(opts.collect ? chooseLaneRealistic(game) : chooseLane(game));
+      // A realistic player fires the ability whenever it's charged.
+      if (opts.collect && game.abilityReady) input.triggerAbility();
       game.update(dt);
 
-      // Isolate the weapon-vs-pressure comparison: no random pickups reach the
-      // ship, and the buffed run's loadout is controlled rather than looted.
-      if (opts.buffed) maintainLoadout(game, opts.weapon ?? 'scatter');
-      else game.effects.reset();
-      game.pickups.length = 0;
+      if (opts.collect) {
+        // Realistic: let drops reach the ship and buffs build up naturally.
+      } else {
+        // Isolate weapon-vs-pressure: no pickups reach the ship, and the buffed
+        // run's loadout is controlled rather than looted.
+        if (opts.buffed) maintainLoadout(game, opts.weapon ?? 'scatter');
+        else game.effects.reset();
+        game.pickups.length = 0;
+      }
 
       if (game.phase === 'gameover') break;
     }
@@ -161,6 +207,7 @@ export function simulate(opts: SimOptions): SimResult {
       died: game.phase === 'gameover',
       kills: game.kills,
       score: game.score,
+      buffs: game.effects.list().length,
     };
   } finally {
     Math.random = originalRandom;

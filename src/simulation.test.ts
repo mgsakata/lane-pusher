@@ -13,6 +13,14 @@ const MAX_SECONDS = 180;
 
 const base = SEEDS.map((seed) => simulate({ seed, buffed: false, maxSeconds: MAX_SECONDS }));
 const buffed = SEEDS.map((seed) => simulate({ seed, buffed: true, maxSeconds: MAX_SECONDS }));
+// A realistic player who actually collects the drops that fall (so this run
+// feels pickup frequency, unlike the forced base/maxed runs above).
+const realistic = SEEDS.map((seed) =>
+  simulate({ seed, buffed: false, collect: true, maxSeconds: MAX_SECONDS }),
+);
+
+const meanWave = (runs: typeof base) =>
+  runs.reduce((s, r) => s + r.wave, 0) / runs.length;
 
 describe('unbuffed survival (the game is lethal)', () => {
   it('an autopilot with no power-ups always dies', () => {
@@ -45,6 +53,20 @@ describe('a maxed loadout survives dramatically longer', () => {
     const avgBaseKills = base.reduce((s, r) => s + r.kills, 0) / base.length;
     const avgBuffKills = buffed.reduce((s, r) => s + r.kills, 0) / buffed.length;
     expect(avgBuffKills).toBeGreaterThan(avgBaseKills * 2);
+  });
+});
+
+describe('a realistic player who collects pickups lands between the extremes', () => {
+  it('outlasts the no-buff floor (grabbing drops helps)', () => {
+    expect(meanWave(realistic)).toBeGreaterThan(meanWave(base));
+  });
+
+  it('but never beats a forced maxed loadout', () => {
+    expect(meanWave(realistic)).toBeLessThanOrEqual(meanWave(buffed));
+  });
+
+  it('accumulates buffs over a run', () => {
+    expect(Math.max(...realistic.map((r) => r.buffs))).toBeGreaterThan(0);
   });
 });
 
