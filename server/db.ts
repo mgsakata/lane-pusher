@@ -5,11 +5,18 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// Point LEADERBOARD_DB at a PERSISTENT path (e.g. a mounted volume like
-// /data/leaderboard.db) so scores survive redeploys. Without it the file lives
-// beside the code, which many hosts (Railway, etc.) wipe on every release.
+// Where the SQLite file lives, in order of preference:
+//   1. LEADERBOARD_DB, if set explicitly.
+//   2. A Railway volume: Railway injects RAILWAY_VOLUME_MOUNT_PATH whenever a
+//      volume is attached, so once you add one the DB lands on it automatically
+//      — no extra env var needed.
+//   3. Beside the code (ephemeral: wiped on every redeploy). Local-dev default.
+export const volumeDir = process.env.RAILWAY_VOLUME_MOUNT_PATH || null;
 export const dbPath =
-  process.env.LEADERBOARD_DB ?? path.join(here, '..', 'leaderboard.db');
+  process.env.LEADERBOARD_DB ||
+  (volumeDir
+    ? path.join(volumeDir, 'leaderboard.db')
+    : path.join(here, '..', 'leaderboard.db'));
 
 // Ensure the directory exists (a fresh volume mount may be empty).
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });

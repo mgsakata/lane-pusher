@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, dbPath, type ScoreRow, type SessionRow } from './db';
+import { db, dbPath, volumeDir, type ScoreRow, type SessionRow } from './db';
 import { decryptPayload, makeSessionKey } from './crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -76,11 +76,18 @@ app.post('/api/session', (req, res) => {
  */
 app.get('/api/health', (_req, res) => {
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM scores').get() as { n: number };
-  const persistent = /^(\/data|\/mnt|\/var\/data)\b/.test(dbPath);
+  // Persistent when the DB lives on the attached volume, else fall back to
+  // recognizing common volume roots by path.
+  const persistent = volumeDir
+    ? dbPath.startsWith(volumeDir)
+    : /^(\/data|\/mnt|\/var\/data)\b/.test(dbPath);
   res.json({
     ok: true,
     dbPath,
     persistent,
+    // Echo whether Railway reported a volume, to diagnose setup at a glance:
+    // null here means no volume is attached to the service.
+    railwayVolume: volumeDir,
     scores: n,
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
   });
