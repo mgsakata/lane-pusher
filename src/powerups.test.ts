@@ -44,7 +44,7 @@ describe('Effects leveling', () => {
     expect(e.level('spread')).toBe(0);
   });
 
-  it('stripOne removes one level of a held candidate, leaving the rest', () => {
+  it('stripOne removes the whole stack of a held candidate, leaving the rest', () => {
     const e = new Effects();
     e.apply('rapid');
     e.apply('rapid'); // level 2
@@ -52,7 +52,7 @@ describe('Effects leveling', () => {
 
     const stripped = e.stripOne(['rapid']);
     expect(stripped).toBe('rapid');
-    expect(e.level('rapid')).toBe(1); // one level gone
+    expect(e.level('rapid')).toBe(0); // whole stack gone
     expect(e.level('punch')).toBe(1); // untouched
   });
 

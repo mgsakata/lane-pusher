@@ -270,8 +270,8 @@ describe('new power-ups', () => {
     expect(gain(2)).toBeGreaterThan(gain(0));
   });
 
-  it('a dampener removes one upgrade, not all of them', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0);
+  it('a dampener strips one whole upgrade, not the whole loadout', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // picks the first held candidate
     const game = new Game(new ScriptedInput());
     game.start();
     game.weapon = 'blaster';
@@ -279,18 +279,19 @@ describe('new power-ups', () => {
     game.player.x = laneCenterX(0);
     game.player.shieldCharges = 0;
     game.effects.apply('rapid');
-    game.effects.apply('rapid'); // 2
-    game.effects.apply('twin'); // 1
-    game.effects.apply('slow'); // 1 (universal)
-    const total = () => game.effects.list().reduce((sum, b) => sum + b.level, 0);
-    const before = total();
+    game.effects.apply('rapid'); // RAPID level 2
+    game.effects.apply('twin');
+    game.effects.apply('slow');
+    const kinds = () => game.effects.list().length;
+    const before = kinds();
 
     game.enemies = [
       makeBoss({ kind: 'hazard', stripsPowerups: true, lane: 0, y: PLAYER.y, radius: 22 }),
     ];
     game.update(1 / 60);
 
-    expect(total()).toBe(before - 1); // exactly one level lost
+    expect(kinds()).toBe(before - 1); // exactly one buff type removed
+    expect(game.effects.level('rapid')).toBe(0); // the whole RAPID stack, not one level
   });
 
   it('VAMP heals on a kill when the roll succeeds', () => {

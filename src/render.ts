@@ -1072,7 +1072,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   row(ABILITY.color, ABILITY.name, ABILITY.desc);
 
   y += 10;
-  centered(ctx, 'Dodge pink DAMPENERS — each steals a random upgrade', y, '11px', '#ff5cf0');
+  centered(ctx, 'Dodge pink DAMPENERS — each strips a whole random upgrade', y, '11px', '#ff5cf0');
   y += 22;
   centered(ctx, '← →  move   ·   SPACE = PULSE   ·   ESC / P = pause', y, '11px', COLORS.textDim);
   y += 30;

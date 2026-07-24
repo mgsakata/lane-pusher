@@ -117,16 +117,15 @@ export class Effects {
   }
 
   /**
-   * Removes one level of a single random buff drawn from `candidates` (that is
-   * actually held). Returns the kind touched, or null if none applied.
+   * Removes the entire stack of one random buff drawn from `candidates` (that
+   * is actually held) — all its levels at once. Returns the kind stripped, or
+   * null if none applied.
    */
   stripOne(candidates: PowerUpKind[]): PowerUpKind | null {
     const held = candidates.filter((k) => (this.levels.get(k) ?? 0) > 0);
     if (held.length === 0) return null;
     const kind = held[Math.floor(Math.random() * held.length)];
-    const next = (this.levels.get(kind) ?? 0) - 1;
-    if (next <= 0) this.levels.delete(kind);
-    else this.levels.set(kind, next);
+    this.levels.delete(kind);
     return kind;
   }
 
