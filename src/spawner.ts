@@ -1,4 +1,5 @@
 import {
+  pickupInterval,
   spawnInterval,
   waveHpMultiplier,
   waveSpeedMultiplier,
@@ -155,7 +156,7 @@ export class Spawner {
     this.pickupTimer -= dt;
     if (this.pickupTimer <= 0) {
       this.pickupTimer =
-        POWERUP.interval +
+        pickupInterval(this.wave) +
         randRange(-POWERUP.intervalJitter, POWERUP.intervalJitter, this.rng);
       out.pickupLanes.push(randInt(0, LANE_COUNT, this.rng) as LaneIndex);
     }

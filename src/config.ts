@@ -430,10 +430,16 @@ export const DROP_CATEGORY = {
 };
 
 export const POWERUP = {
-  /** Seconds between pickup spawns. */
+  /** Seconds between pickup spawns (the steady mid/late-game rate). */
   interval: 7.5,
   /** Random +/- jitter applied to the interval. */
   intervalJitter: 2.5,
+  /**
+   * Pickups are rarer in the opening waves: this many extra seconds are added
+   * to the interval on wave 1, easing linearly to 0 by `earlyRampWaves`.
+   */
+  earlyIntervalBonus: 5,
+  earlyRampWaves: 5,
   radius: 18,
   /** Pickups drift down slower than enemies so they are catchable. */
   speed: 90,

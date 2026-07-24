@@ -167,7 +167,7 @@ function drawField(ctx: CanvasRenderingContext2D, game: Game) {
 // ------------------------------------------------------------------ actors
 
 function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
-  const { x, lane, invuln, shieldCharges, dodgeTimer } = game.player;
+  const { x, lane, invuln, shieldCharges, dodgeTimer, dodgeCooldown } = game.player;
   const y = PLAYER.y;
   const r = PLAYER.radius;
 
@@ -180,6 +180,18 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(x, y, r + 4 + (1 - t) * 26, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else if (dodgeCooldown > 0) {
+    // Recharging: a thin arc sweeps from empty back to a full ring, which
+    // brightens as it completes to flag "dodge ready again".
+    const recharge = Math.max(0.001, DODGE.cooldown - DODGE.duration);
+    const frac = clamp(1 - dodgeCooldown / recharge, 0, 1);
+    ctx.save();
+    ctx.strokeStyle = `rgba(0,229,255,${0.25 + frac * 0.4})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 6, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }

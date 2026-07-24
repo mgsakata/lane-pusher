@@ -2,6 +2,7 @@ import {
   BUFF_SCALING,
   ENEMY_DEFS,
   PLAYER,
+  POWERUP,
   SPAWN_Y,
   WAVE,
   WEAPON_DEFS,
@@ -94,6 +95,14 @@ export function spawnInterval(wave: number): number {
   const scaled =
     WAVE.baseSpawnInterval * Math.pow(WAVE.spawnIntervalDecay, wave - 1);
   return Math.max(WAVE.minSpawnInterval, scaled);
+}
+
+/** Seconds between power-up drops, longer in the opening waves. */
+export function pickupInterval(wave: number): number {
+  const early =
+    POWERUP.earlyIntervalBonus *
+    Math.max(0, 1 - (wave - 1) / POWERUP.earlyRampWaves);
+  return POWERUP.interval + early;
 }
 
 export function enemyHpAtWave(def: EnemyDef, wave: number): number {
