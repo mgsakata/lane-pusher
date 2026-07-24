@@ -65,8 +65,13 @@ A small **Express + SQLite** service (in `server/`) backs an online scoreboard.
 In production, one Node server serves both the built game and the API:
 
 ```bash
-npm start        # builds the game, then serves game + API on :8787
+npm run serve    # builds the game, then serves game + API on :8787
 ```
+
+On a host, build and start are separate steps: the platform runs `npm run build`
+once, then `npm start` just serves (it does **not** rebuild). `railway.json`
+wires this up for Railway — build in the build step, `npm start` to run, and a
+`/api/health` healthcheck so a booting container isn't killed prematurely.
 
 ### Deploying with a persistent leaderboard
 
