@@ -373,12 +373,19 @@ export const WAVE = {
   baseSpawnInterval: 1.15,
   /** Spawn interval is multiplied by this per wave, floored below. */
   spawnIntervalDecay: 0.93,
-  minSpawnInterval: 0.34,
-  /** Enemy hp multiplier: 1 + (wave - 1) * hpGrowth. */
+  minSpawnInterval: 0.24,
+  /** Enemy hp multiplier: 1 + (wave - 1) * hpGrowth (+ a late-game surge). */
   hpGrowth: 0.18,
+  /**
+   * Late-game surge: past `hardWave`, each further wave adds this much extra hp
+   * growth on top of the linear ramp. Keeps the early game identical while
+   * giving even a maxed loadout a real difficulty ceiling to eventually hit.
+   */
+  hardWave: 8,
+  hpGrowthLate: 0.34,
   /** Enemy speed multiplier: 1 + (wave - 1) * speedGrowth, capped. */
   speedGrowth: 0.035,
-  maxSpeedMultiplier: 2.2,
+  maxSpeedMultiplier: 2.7,
   /** Every Nth wave is a boss wave. */
   bossEvery: 5,
   /** Score awarded for surviving a wave, multiplied by wave number. */

@@ -84,7 +84,8 @@ export function weaponDps(weapon: WeaponKind, levels: Levels = {}): number {
 // -------------------------------------------------------------- progression
 
 export function waveHpMultiplier(wave: number): number {
-  return 1 + (wave - 1) * WAVE.hpGrowth;
+  const late = Math.max(0, wave - WAVE.hardWave) * WAVE.hpGrowthLate;
+  return 1 + (wave - 1) * WAVE.hpGrowth + late;
 }
 
 export function waveSpeedMultiplier(wave: number): number {
