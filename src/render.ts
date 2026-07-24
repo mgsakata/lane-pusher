@@ -231,83 +231,292 @@ function drawEnemyShots(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.restore();
 }
 
-function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
-  if (enemy.kind === 'hazard') {
-    drawHazard(ctx, enemy);
-    return;
-  }
+const PI2 = Math.PI * 2;
 
-  const wobble = Math.sin(enemy.age * 6) * 2;
-  const x = enemy.x + wobble;
-  const { y, radius } = enemy;
+function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
+  if (enemy.kind === 'hazard') return drawHazard(ctx, enemy);
+  if (enemy.kind === 'boss') return drawBoss(ctx, enemy);
+
+  const body = enemy.hitFlash > 0 ? '#ffffff' : enemy.color;
 
   ctx.save();
-  ctx.fillStyle = enemy.hitFlash > 0 ? '#ffffff' : enemy.color;
   ctx.shadowColor = enemy.color;
-  ctx.shadowBlur = enemy.kind === 'boss' ? 26 : 10;
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = body;
 
-  ctx.beginPath();
   switch (enemy.kind) {
     case 'runner':
-      ctx.moveTo(x, y + radius);
-      ctx.lineTo(x + radius, y - radius);
-      ctx.lineTo(x - radius, y - radius);
+      drawRunner(ctx, enemy, body);
       break;
     case 'brute':
-      ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+      drawBrute(ctx, enemy, body);
       break;
     case 'splitter':
-      ctx.moveTo(x, y - radius);
-      ctx.lineTo(x + radius, y);
-      ctx.lineTo(x, y + radius);
-      ctx.lineTo(x - radius, y);
+      drawSplitter(ctx, enemy, body);
       break;
     case 'weaver':
-      for (let i = 0; i < 6; i += 1) {
-        const a = (Math.PI / 3) * i - Math.PI / 2;
-        const px = x + Math.cos(a) * radius;
-        const py = y + Math.sin(a) * radius;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
+      drawWeaver(ctx, enemy, body);
+      break;
+    case 'armored':
+      drawArmored(ctx, enemy, body);
+      break;
+    case 'shooter':
+      drawShooter(ctx, enemy, body);
       break;
     default:
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  if (enemy.kind === 'boss') {
-    ctx.strokeStyle = '#ffffff';
-    ctx.globalAlpha = 0.5;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 9, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  // A shooter's barrel points down the lane it fires along.
-  if (enemy.kind === 'shooter') {
-    ctx.fillStyle = enemy.color;
-    ctx.fillRect(x - 4, y + radius - 4, 8, 12);
-  }
-
-  // Armor reads as a plated arc across the top that shrinks as it breaks.
-  if (enemy.armor > 0) {
-    const frac = enemy.armor / enemy.maxArmor;
-    const start = -Math.PI * 0.85;
-    const end = -Math.PI * 0.15;
-    ctx.strokeStyle = '#e8edf3';
-    ctx.lineWidth = 4;
-    ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.arc(x, y, radius + 6, start, start + (end - start) * frac);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+      drawGrunt(ctx, enemy, body);
   }
   ctx.restore();
 
-  if (enemy.maxHp > 1) drawHealthBar(ctx, x, y - radius - 10, radius, enemy);
+  if (enemy.maxHp > 1) {
+    drawHealthBar(ctx, enemy.x, enemy.y - enemy.radius - 12, enemy.radius, enemy);
+  }
+}
+
+/** Round menace with two dark eyes; bobs gently. */
+function drawGrunt(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const x = e.x;
+  const y = e.y + Math.sin(e.age * 6) * 2;
+  const r = e.radius;
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, PI2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(10,12,18,0.85)';
+  ctx.beginPath();
+  ctx.arc(x - r * 0.34, y - r * 0.1, r * 0.17, 0, PI2);
+  ctx.arc(x + r * 0.34, y - r * 0.1, r * 0.17, 0, PI2);
+  ctx.fill();
+}
+
+/** A sharp dart with an upward speed streak. */
+function drawRunner(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const grad = ctx.createLinearGradient(x, y - r, x, y - r * 3.2);
+  grad.addColorStop(0, e.color);
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x - r * 0.35, y - r * 3.2, r * 0.7, r * 2.4);
+  ctx.restore();
+
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(x, y + r);
+  ctx.lineTo(x + r * 0.9, y - r * 0.6);
+  ctx.lineTo(x, y - r * 0.05);
+  ctx.lineTo(x - r * 0.9, y - r * 0.6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A heavy plated block with bolts; wobbles slowly. */
+function drawBrute(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const r = e.radius;
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  ctx.rotate(Math.sin(e.age * 3) * 0.05);
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.roundRect(-r, -r, r * 2, r * 2, r * 0.28);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.roundRect(-r * 0.58, -r * 0.58, r * 1.16, r * 1.16, r * 0.16);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  for (const [bx, by] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    ctx.beginPath();
+    ctx.arc(bx * r * 0.72, by * r * 0.72, r * 0.1, 0, PI2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** A diamond that pulses apart — a visual promise that it splits. */
+function drawSplitter(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  const gap = (Math.sin(e.age * 7) * 0.5 + 0.5) * r * 0.28;
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r - gap);
+  ctx.lineTo(x + r, y - gap);
+  ctx.lineTo(x - r, y - gap);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x, y + r + gap);
+  ctx.lineTo(x + r, y + gap);
+  ctx.lineTo(x - r, y + gap);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A spinning hexagon with a bright core. */
+function drawWeaver(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const r = e.radius;
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  ctx.rotate(e.age * 3);
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i;
+    const px = Math.cos(a) * r;
+    const py = Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.28, 0, PI2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A core disc fronted by segmented armor plates that break one by one. */
+function drawArmored(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, PI2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.6, 0, PI2);
+  ctx.stroke();
+
+  if (e.maxArmor > 0) {
+    const start = -Math.PI * 0.9;
+    const span = Math.PI * 0.8;
+    const seg = span / e.maxArmor;
+    for (let i = 0; i < e.maxArmor; i += 1) {
+      ctx.strokeStyle = i < e.armor ? '#e8edf3' : 'rgba(232,237,243,0.18)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x, y, r + 6, start + i * seg + 0.06, start + (i + 1) * seg - 0.06);
+      ctx.stroke();
+    }
+  }
+}
+
+/** A turret with a barrel and a core eye that charges before it fires. */
+function drawShooter(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, PI2);
+  ctx.fill();
+  // Barrel.
+  ctx.fillStyle = e.color;
+  ctx.beginPath();
+  ctx.roundRect(x - r * 0.18, y + r * 0.5, r * 0.36, r * 0.8, r * 0.1);
+  ctx.fill();
+
+  const charge = telegraphCharge(e.shootTimer);
+  if (charge > 0) {
+    drawLaneWarning(ctx, e.lane, y, charge);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = '#ffd166';
+    ctx.shadowBlur = 18 * charge;
+    ctx.fillStyle = `rgba(255,220,120,${charge})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r * (0.2 + charge * 0.3), 0, PI2);
+    ctx.fill();
+    ctx.restore();
+  } else {
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(10,12,18,0.7)';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.28, 0, PI2);
+    ctx.fill();
+  }
+}
+
+/** 0..1 wind-up strength in the moment before a shot; else 0. */
+function telegraphCharge(shootTimer: number, window = 0.4): number {
+  if (shootTimer <= 0 || shootTimer >= window) return 0;
+  return 1 - shootTimer / window;
+}
+
+/** A glowing warning column down a lane, from y to the goal line. */
+function drawLaneWarning(
+  ctx: CanvasRenderingContext2D,
+  lane: number,
+  fromY: number,
+  strength: number,
+) {
+  const lx = laneCenterX(lane);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const grad = ctx.createLinearGradient(lx, fromY, lx, GOAL_LINE_Y);
+  grad.addColorStop(0, `rgba(255,90,120,${0.32 * strength})`);
+  grad.addColorStop(1, 'rgba(255,90,120,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(lx - 13, fromY, 26, GOAL_LINE_Y - fromY);
+  ctx.restore();
+}
+
+/** A menacing rotating core with spikes; reddens and pulses when enraged. */
+function drawBoss(ctx: CanvasRenderingContext2D, e: Enemy) {
+  const { x, y, radius: r } = e;
+  const enraged = e.hp <= e.maxHp * BOSS.enrageAt;
+  const col = e.hitFlash > 0 ? '#ffffff' : enraged ? '#ff2e63' : e.color;
+  const rr = r * (1 + Math.sin(e.age * (enraged ? 9 : 4)) * 0.05);
+
+  // Telegraph: warn the lane(s) it is about to fire down.
+  const charge = telegraphCharge(e.shootTimer, 0.35);
+  if (charge > 0 && e.y >= BOSS.holdY - 1) {
+    const lanes = enraged ? [0, 1] : [e.lane];
+    for (const lane of lanes) drawLaneWarning(ctx, lane, y, charge);
+  }
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = enraged ? '#ff2e63' : e.color;
+  ctx.shadowBlur = 26;
+
+  ctx.save();
+  ctx.rotate(e.age * (enraged ? 1.6 : 0.8));
+  ctx.strokeStyle = col;
+  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, rr + 10, 0, PI2);
+  ctx.stroke();
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i / 8) * PI2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * (rr + 6), Math.sin(a) * (rr + 6));
+    ctx.lineTo(Math.cos(a) * (rr + 17), Math.sin(a) * (rr + 17));
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(0, 0, rr, 0, PI2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(8,8,14,0.85)';
+  ctx.beginPath();
+  ctx.arc(0, 0, rr * 0.52, 0, PI2);
+  ctx.fill();
+  ctx.fillStyle = charge > 0 ? '#ffffff' : col;
+  ctx.shadowBlur = charge > 0 ? 24 : 12;
+  ctx.beginPath();
+  ctx.arc(0, 0, rr * (0.26 + charge * 0.12), 0, PI2);
+  ctx.fill();
+  ctx.restore();
 }
 
 /** A hazard reads as a spinning warning ring with a cross — clearly "avoid". */

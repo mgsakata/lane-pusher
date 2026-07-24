@@ -354,9 +354,11 @@ export class Game {
       armor: def.armor ?? 0,
       maxArmor: def.armor ?? 0,
       weaveInterval: def.weaveInterval ?? 0,
-      weaveTimer: def.weaveInterval ?? 0,
+      // Bosses reuse these timers for their own attacks; seed them so the first
+      // shot telegraphs instead of firing on the frame they reach the hold line.
+      weaveTimer: def.kind === 'boss' ? BOSS.weaveInterval : def.weaveInterval ?? 0,
       shootInterval: def.shootInterval ?? 0,
-      shootTimer: def.shootInterval ?? 0,
+      shootTimer: def.kind === 'boss' ? BOSS.fireInterval : def.shootInterval ?? 0,
       hitFlash: 0,
       age: 0,
     });
