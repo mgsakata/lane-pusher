@@ -52,7 +52,10 @@ export const PLAYER = {
  * `cooldown`. `doubleTapMs` is the window between the two taps.
  */
 export const DODGE = {
-  doubleTapMs: 260,
+  // A relaxed window: a comfortable thumb double-tap runs ~250-400ms, and a
+  // false dodge is harmless (you only ever double-tap the lane you're already
+  // in), so err generous rather than miss real taps.
+  doubleTapMs: 450,
   duration: 0.4,
   cooldown: 0.85,
 };
@@ -494,9 +497,10 @@ export const OVERDRIVE = {
 
 /**
  * Tap region (as viewport fractions) that fires the ability instead of
- * switching lanes — the bottom-right corner. Keyboard: Space.
+ * switching lanes — the bottom-right corner. Sized generously for a thumb.
+ * Keyboard: Space.
  */
-export const ABILITY_BUTTON = { xMin: 0.78, yMin: 0.9 };
+export const ABILITY_BUTTON = { xMin: 0.7, yMin: 0.85 };
 
 /**
  * Top-right tap region that pauses (during play) or opens the guide (on the

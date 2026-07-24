@@ -1067,9 +1067,9 @@ function drawBossBar(ctx: CanvasRenderingContext2D, game: Game) {
 
 function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
   const def = game.abilityDef;
-  const cx = WIDTH - 34;
-  const cy = HEIGHT - 28;
-  const r = 20;
+  const r = 30;
+  const cx = WIDTH - r - 14;
+  const cy = HEIGHT - r - 12;
   const frac = Math.min(1, game.abilityCharge / def.maxCharge);
   const ready = game.abilityReady;
 
@@ -1078,21 +1078,25 @@ function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.fill();
+  // A subtle rim so the tap target reads clearly on a busy field.
+  ctx.strokeStyle = ready ? def.color : 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
   ctx.beginPath();
-  ctx.arc(cx, cy, r - 3, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+  ctx.arc(cx, cy, r - 4, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
   ctx.strokeStyle = def.color;
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 5;
   if (ready) {
     ctx.shadowColor = def.color;
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 16;
   }
   ctx.stroke();
   ctx.restore();
 
   ctx.fillStyle = ready ? def.color : COLORS.textDim;
   // Short tag so long names (OVERDRIVE) stay inside the badge.
-  ctx.font = 'bold 8px system-ui, sans-serif';
+  ctx.font = 'bold 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(def.name.slice(0, 5), cx, cy);
@@ -1146,7 +1150,8 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   const chipH = 18;
   const gapX = 6;
   const gapY = 5;
-  const rightEdge = WIDTH - 16;
+  // Keep the strip clear of the bottom-right ability button (drawn on top).
+  const rightEdge = WIDTH - 86;
   const leftLimit = 16;
 
   // Timed bursts (with a countdown) then persistent buffs, as chips in the HUD
