@@ -33,6 +33,7 @@ export function fireCooldown(weapon: WeaponKind, levels: Levels = {}): number {
   const def = WEAPON_DEFS[weapon];
   let cd = def.baseCooldown;
   if (weapon === 'blaster') cd *= atLevel(BUFF_SCALING.rapid, lvl(levels, 'rapid'));
+  if (weapon === 'scatter') cd *= atLevel(BUFF_SCALING.pump, lvl(levels, 'pump'));
   if (weapon === 'railgun') cd *= atLevel(BUFF_SCALING.charge, lvl(levels, 'charge'));
   return cd;
 }
@@ -41,6 +42,7 @@ export function fireCooldown(weapon: WeaponKind, levels: Levels = {}): number {
 export function projectileDamage(weapon: WeaponKind, levels: Levels = {}): number {
   const def = WEAPON_DEFS[weapon];
   let dmg = def.baseDamage;
+  if (weapon === 'blaster') dmg += atLevel(BUFF_SCALING.power, lvl(levels, 'power'));
   if (weapon === 'scatter') dmg += atLevel(BUFF_SCALING.punch, lvl(levels, 'punch'));
   if (weapon === 'railgun') dmg += atLevel(BUFF_SCALING.overload, lvl(levels, 'overload'));
   return dmg;
@@ -52,10 +54,11 @@ export function pelletsPerLane(weapon: WeaponKind, levels: Levels = {}): number 
   return 1;
 }
 
-/** Lanes a shot covers: scatter both, blaster both only with TWIN, else one. */
+/** Lanes a shot covers: scatter both; blaster with TWIN; railgun with FORK. */
 export function lanesFired(weapon: WeaponKind, levels: Levels = {}): number {
   if (weapon === 'scatter') return 2;
   if (weapon === 'blaster' && lvl(levels, 'twin') > 0) return 2;
+  if (weapon === 'railgun' && lvl(levels, 'fork') > 0) return 2;
   return 1;
 }
 

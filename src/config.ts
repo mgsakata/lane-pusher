@@ -62,7 +62,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileSpeed: 900,
     projectileRadius: 6,
     pierce: false,
-    buffs: ['rapid', 'twin'],
+    buffs: ['rapid', 'twin', 'power'],
     switchWeight: 2,
   },
   scatter: {
@@ -75,7 +75,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileSpeed: 820,
     projectileRadius: 5,
     pierce: false,
-    buffs: ['spread', 'punch'],
+    buffs: ['spread', 'punch', 'pump'],
     switchWeight: 2,
   },
   railgun: {
@@ -88,7 +88,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileSpeed: 1300,
     projectileRadius: 8,
     pierce: true,
-    buffs: ['charge', 'overload'],
+    buffs: ['charge', 'overload', 'fork'],
     switchWeight: 2,
   },
 };
@@ -97,12 +97,16 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
 export const BUFF_SCALING = {
   /** Blaster fire-cooldown multiplier. */
   rapid: [1, 0.62, 0.44, 0.3],
-  /** Railgun fire-cooldown multiplier. */
-  charge: [1, 0.72, 0.56, 0.42],
+  /** Blaster bonus damage. */
+  power: [0, 1, 2, 3],
+  /** Scatter fire-cooldown multiplier. */
+  pump: [1, 0.72, 0.56, 0.44],
   /** Scatter pellets fired per lane (level 0 = 1 pellet). */
   spread: [1, 2, 3, 4],
   /** Scatter bonus damage per pellet. */
   punch: [0, 1, 2, 3],
+  /** Railgun fire-cooldown multiplier. */
+  charge: [1, 0.72, 0.56, 0.42],
   /** Railgun bonus damage. */
   overload: [0, 2, 4, 6],
   /** Universal enemy speed multiplier while SLOW is held. */
@@ -284,14 +288,17 @@ export const WAVE = {
 
 export const POWERUP_DEFS: PowerUpDef[] = [
   // Blaster
-  { kind: 'rapid', label: 'RAPID', desc: 'Blaster: faster fire rate', type: 'buff', color: '#8fe9ff', weight: 10, maxLevel: 3 },
-  { kind: 'twin', label: 'TWIN', desc: 'Blaster: fire both lanes', type: 'buff', color: '#8fe9ff', weight: 8 },
+  { kind: 'rapid', label: 'RAPID', desc: 'Blaster: faster fire rate', type: 'buff', color: '#8fe9ff', weight: 9, maxLevel: 3 },
+  { kind: 'twin', label: 'TWIN', desc: 'Blaster: fire both lanes', type: 'buff', color: '#8fe9ff', weight: 7 },
+  { kind: 'power', label: 'POWER', desc: 'Blaster: more damage', type: 'buff', color: '#8fe9ff', weight: 8, maxLevel: 3 },
   // Scatter
-  { kind: 'spread', label: 'SPREAD', desc: 'Scatter: more pellets', type: 'buff', color: '#ffd166', weight: 10, maxLevel: 3 },
+  { kind: 'spread', label: 'SPREAD', desc: 'Scatter: more pellets', type: 'buff', color: '#ffd166', weight: 9, maxLevel: 3 },
   { kind: 'punch', label: 'PUNCH', desc: 'Scatter: more damage', type: 'buff', color: '#ffd166', weight: 8, maxLevel: 3 },
+  { kind: 'pump', label: 'PUMP', desc: 'Scatter: faster fire rate', type: 'buff', color: '#ffd166', weight: 8, maxLevel: 3 },
   // Railgun
-  { kind: 'charge', label: 'CHARGE', desc: 'Railgun: faster fire rate', type: 'buff', color: '#c77dff', weight: 10, maxLevel: 3 },
+  { kind: 'charge', label: 'CHARGE', desc: 'Railgun: faster fire rate', type: 'buff', color: '#c77dff', weight: 9, maxLevel: 3 },
   { kind: 'overload', label: 'OVERLD', desc: 'Railgun: more damage', type: 'buff', color: '#c77dff', weight: 8, maxLevel: 3 },
+  { kind: 'fork', label: 'FORK', desc: 'Railgun: fire both lanes', type: 'buff', color: '#c77dff', weight: 7 },
   // Universal persistent buffs
   { kind: 'slow', label: 'SLOW', desc: 'Enemies move slower', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
   { kind: 'vamp', label: 'VAMP', desc: 'Chance to heal on a kill', type: 'buff', color: '#ff5c8a', weight: 5, maxLevel: 3 },

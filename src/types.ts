@@ -110,12 +110,15 @@ export type PowerUpKind =
   // Blaster buffs
   | 'rapid'
   | 'twin'
+  | 'power'
   // Scatter buffs
   | 'spread'
   | 'punch'
+  | 'pump'
   // Railgun buffs
   | 'charge'
   | 'overload'
+  | 'fork'
   // Universal persistent buffs
   | 'slow'
   | 'vamp'

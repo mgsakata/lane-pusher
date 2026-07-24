@@ -19,6 +19,20 @@ function powerPickup(power: PowerUpKind, lane: number): Pickup {
   };
 }
 
+function weaponPickup(weapon: 'blaster' | 'scatter' | 'railgun', lane: number): Pickup {
+  return {
+    id: 998,
+    content: { type: 'weapon', weapon },
+    lane: lane as 0 | 1,
+    x: laneCenterX(lane),
+    y: PLAYER.y,
+    radius: 18,
+    color: '#000',
+    label: weapon,
+    age: 0,
+  };
+}
+
 function bombPickup(lane: number): Pickup {
   return {
     id: 999,
@@ -168,6 +182,31 @@ describe('pause and help', () => {
     input.press();
     game.update(1 / 60);
     expect(game.phase).toBe('playing');
+  });
+});
+
+describe('weapon upgrades persist across switches', () => {
+  it('keeps a weapon’s buff levels when you switch away and back', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+
+    // Upgrade the blaster.
+    game.effects.apply('rapid');
+    game.effects.apply('rapid');
+    expect(game.effects.level('rapid')).toBe(2);
+
+    // Switch to scatter, then back to blaster (via pickups).
+    game.pickups = [weaponPickup('scatter', 0)];
+    game.update(1 / 60);
+    expect(game.weapon).toBe('scatter');
+    expect(game.effects.level('rapid')).toBe(2); // still held while on scatter
+
+    game.pickups = [weaponPickup('blaster', 0)];
+    game.update(1 / 60);
+    expect(game.weapon).toBe('blaster');
+    expect(game.effects.level('rapid')).toBe(2); // and back on the blaster
   });
 });
 

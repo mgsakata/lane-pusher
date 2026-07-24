@@ -57,6 +57,21 @@ describe('each weapon buff upgrades its own weapon', () => {
     );
   });
 
+  it('each weapon has three of its own buffs', () => {
+    for (const w of WEAPONS) expect(WEAPON_DEFS[w].buffs).toHaveLength(3);
+  });
+
+  it('the third buffs upgrade their weapon (POWER / PUMP / FORK)', () => {
+    expect(B.projectileDamage('blaster', { power: 3 })).toBeGreaterThan(
+      B.projectileDamage('blaster'),
+    );
+    expect(B.fireCooldown('scatter', { pump: 3 })).toBeLessThan(
+      B.fireCooldown('scatter'),
+    );
+    expect(B.lanesFired('railgun', { fork: 1 })).toBe(2);
+    expect(B.lanesFired('railgun')).toBe(1);
+  });
+
   it('every weapon maxes out to far higher DPS than its base', () => {
     for (const w of WEAPONS) {
       expect(B.weaponDps(w, maxed[w])).toBeGreaterThan(B.weaponDps(w) * 3);
