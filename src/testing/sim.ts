@@ -27,9 +27,14 @@ export class ScriptedInput implements InputSource {
   private ability = false;
   private pause = false;
   private help = false;
+  private dodge: number | null = null;
 
   setLane(lane: number) {
     this.laneTarget = lane;
+  }
+
+  triggerDodge(lane: number) {
+    this.dodge = lane;
   }
 
   press() {
@@ -76,6 +81,12 @@ export class ScriptedInput implements InputSource {
     const h = this.help;
     this.help = false;
     return h;
+  }
+
+  consumeDodge(): number | null {
+    const d = this.dodge;
+    this.dodge = null;
+    return d;
   }
 }
 

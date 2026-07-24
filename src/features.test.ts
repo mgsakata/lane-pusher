@@ -76,6 +76,7 @@ function makeBoss(over: Partial<Enemy> = {}): Enemy {
     radius: 42,
     color: '#ff2e63',
     stripsPowerups: false,
+    stripsAll: false,
     armor: 0,
     maxArmor: 0,
     weaveInterval: 0,
@@ -351,6 +352,135 @@ describe('new power-ups', () => {
 
     expect(game.enemies.some((e) => e.id === enemy.id)).toBe(false);
     expect(game.player.health).toBe(3);
+  });
+});
+
+describe('dodge', () => {
+  it('double-tapping your current lane grants brief i-frames', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.player.lane = 0;
+    expect(game.player.dodgeTimer).toBe(0);
+
+    input.triggerDodge(0); // double-tap the lane we already occupy
+    game.update(1 / 60);
+    expect(game.player.dodgeTimer).toBeGreaterThan(0);
+  });
+
+  it('a dodge does not trigger for the lane you are not in', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.player.lane = 0;
+    input.triggerDodge(1); // that would just be a lane switch, not a dodge
+    game.update(1 / 60);
+    expect(game.player.dodgeTimer).toBe(0);
+  });
+
+  it('a dodging player takes no damage from a colliding enemy', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    const hp0 = game.player.health;
+
+    input.triggerDodge(0);
+    game.enemies = [
+      makeBoss({ kind: 'grunt', lane: 0, y: PLAYER.y, radius: 20, hp: 5, maxHp: 5, damage: 3 }),
+    ];
+    game.update(1 / 60);
+    expect(game.player.health).toBe(hp0);
+  });
+
+  it('a dodging player slips past a dampener without losing a buff', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.effects.apply('rapid');
+    game.effects.apply('slow');
+    const before = game.effects.list().length;
+
+    input.triggerDodge(0);
+    game.enemies = [
+      makeBoss({ kind: 'hazard', stripsPowerups: true, lane: 0, y: PLAYER.y, radius: 22 }),
+    ];
+    game.update(1 / 60);
+    expect(game.effects.list().length).toBe(before); // nothing stripped
+  });
+
+  it('respects its cooldown — no second dodge back-to-back', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.player.lane = 0;
+
+    input.triggerDodge(0);
+    game.update(1 / 60);
+    // Let the active window lapse but stay inside the cooldown.
+    for (let i = 0; i < 40; i += 1) game.update(1 / 60);
+    expect(game.player.dodgeTimer).toBe(0);
+    expect(game.player.dodgeCooldown).toBeGreaterThan(0);
+
+    input.triggerDodge(0);
+    game.update(1 / 60);
+    expect(game.player.dodgeTimer).toBe(0); // still cooling down
+  });
+});
+
+describe('super dampener', () => {
+  it('wipes every held buff on contact, not just one', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.weapon = 'blaster';
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.player.shieldCharges = 0;
+    game.effects.apply('rapid');
+    game.effects.apply('twin');
+    game.effects.apply('slow');
+    game.effects.apply('greed');
+    expect(game.effects.list().length).toBe(4);
+
+    game.enemies = [
+      makeBoss({
+        kind: 'superdampener',
+        stripsPowerups: true,
+        stripsAll: true,
+        lane: 0,
+        y: PLAYER.y,
+        radius: 26,
+      }),
+    ];
+    game.update(1 / 60);
+    expect(game.effects.list().length).toBe(0); // everything gone
+  });
+
+  it('is blocked entirely by a shield charge', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.player.shieldCharges = 1;
+    game.effects.apply('rapid');
+    game.effects.apply('slow');
+
+    game.enemies = [
+      makeBoss({
+        kind: 'superdampener',
+        stripsPowerups: true,
+        stripsAll: true,
+        lane: 0,
+        y: PLAYER.y,
+        radius: 26,
+      }),
+    ];
+    game.update(1 / 60);
+    expect(game.player.shieldCharges).toBe(0); // shield spent
+    expect(game.effects.list().length).toBe(2); // buffs preserved
   });
 });
 

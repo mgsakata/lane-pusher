@@ -23,6 +23,7 @@ export interface GameEventMap {
   buffUp: { kind: PowerUpKind; level: number };
   bomb: Record<string, never>;
   ability: Record<string, never>;
+  dodge: Record<string, never>;
   enemyFire: { lane: LaneIndex };
   waveStart: { wave: number; boss: boolean };
   waveClear: { wave: number };

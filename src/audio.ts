@@ -135,6 +135,7 @@ export class SoundEngine {
     e.on('buffUp', () => this.buffUp());
     e.on('bomb', () => this.bomb());
     e.on('ability', () => this.ability());
+    e.on('dodge', () => this.dodge());
     e.on('enemyFire', () => this.enemyFire());
     e.on('waveStart', ({ boss }) => this.waveStart(boss));
     e.on('waveClear', () => this.waveClear());
@@ -310,6 +311,12 @@ export class SoundEngine {
   private ability() {
     this.noise({ dur: 0.4, gain: 0.34, type: 'lowpass', freq: 2600, to: 220 });
     this.tone({ freq: 180, to: 520, type: 'sine', dur: 0.35, gain: 0.28 });
+  }
+
+  private dodge() {
+    // A quick upward whoosh — a short filtered noise swish with an airy blip.
+    this.noise({ dur: 0.16, gain: 0.16, type: 'bandpass', freq: 700, to: 2800, q: 1.4 });
+    this.tone({ freq: 520, to: 880, type: 'sine', dur: 0.12, gain: 0.1 });
   }
 
   private enemyFire() {

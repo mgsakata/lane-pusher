@@ -3,11 +3,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, type ScoreRow, type SessionRow } from './db';
+import { db, dbPath, type ScoreRow, type SessionRow } from './db';
 import { decryptPayload, makeSessionKey } from './crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(here, '..', 'dist');
+const startedAt = Date.now();
 
 const PORT = Number(process.env.PORT ?? 8787);
 const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
@@ -60,6 +61,23 @@ app.post('/api/session', (req, res) => {
     Date.now(),
   );
   res.json({ sessionId, key: key.toString('base64') });
+});
+
+/**
+ * Health/diagnostics: confirms the API is up and, crucially, reports the DB
+ * path and row count so you can verify persistence is live on a mounted volume
+ * (the path should be under your volume, and the count should survive a deploy).
+ */
+app.get('/api/health', (_req, res) => {
+  const { n } = db.prepare('SELECT COUNT(*) AS n FROM scores').get() as { n: number };
+  const persistent = /^(\/data|\/mnt|\/var\/data)\b/.test(dbPath);
+  res.json({
+    ok: true,
+    dbPath,
+    persistent,
+    scores: n,
+    uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+  });
 });
 
 /** Top scores, highest first. */

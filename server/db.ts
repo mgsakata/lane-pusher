@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // Point LEADERBOARD_DB at a PERSISTENT path (e.g. a mounted volume like
 // /data/leaderboard.db) so scores survive redeploys. Without it the file lives
 // beside the code, which many hosts (Railway, etc.) wipe on every release.
-const dbPath =
+export const dbPath =
   process.env.LEADERBOARD_DB ?? path.join(here, '..', 'leaderboard.db');
 
 // Ensure the directory exists (a fresh volume mount may be empty).

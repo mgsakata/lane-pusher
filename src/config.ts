@@ -45,6 +45,18 @@ export const PLAYER = {
   invulnTime: 0.9,
 };
 
+/**
+ * Dodge roll: double-tap your current lane's direction (or double-tap the lane
+ * you're in on touch) to flick briefly intangible — for `duration` seconds you
+ * pass through enemies, their shots, and dampeners unharmed, then it goes on
+ * `cooldown`. `doubleTapMs` is the window between the two taps.
+ */
+export const DODGE = {
+  doubleTapMs: 260,
+  duration: 0.4,
+  cooldown: 0.85,
+};
+
 // ------------------------------------------------------------------ weapons
 
 export const STARTING_WEAPON: WeaponKind = 'blaster';
@@ -190,6 +202,20 @@ export const ENEMY_DEFS: EnemyDef[] = [
     minWave: 2,
     weight: 4,
     stripsPowerups: true,
+  },
+  {
+    // A rare, worse dampener: contact wipes EVERY held buff, not just one stack.
+    kind: 'superdampener',
+    hp: 1,
+    speed: 118,
+    damage: 0,
+    score: 0,
+    radius: 26,
+    color: '#c400ff',
+    minWave: 6,
+    weight: 1.5,
+    stripsPowerups: true,
+    stripsAll: true,
   },
   {
     kind: 'weaver',

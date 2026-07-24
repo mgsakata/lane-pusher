@@ -7,6 +7,7 @@ export type EnemyKind =
   | 'splitter'
   | 'boss'
   | 'hazard'
+  | 'superdampener'
   | 'weaver'
   | 'armored'
   | 'shooter'
@@ -34,6 +35,11 @@ export interface EnemyDef {
    * being in the other lane.
    */
   stripsPowerups?: boolean;
+  /**
+   * A super-dampener: on top of `stripsPowerups`, contact wipes EVERY held buff
+   * (all weapons + universals) instead of a single random stack.
+   */
+  stripsAll?: boolean;
   /** Front-shield hits that must be broken before HP can be damaged. */
   armor?: number;
   /** Seconds between lane switches. Present on weavers only. */
@@ -57,6 +63,8 @@ export interface Enemy {
   color: string;
   /** Copied from the def: a hazard strips buffs instead of dealing damage. */
   stripsPowerups: boolean;
+  /** Copied from the def: a super-dampener wipes every held buff on contact. */
+  stripsAll: boolean;
   /** Remaining front-shield hits; while positive, HP cannot be reduced. */
   armor: number;
   /** Starting armor, for rendering the shield arc. */

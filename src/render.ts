@@ -3,6 +3,7 @@ import {
   BOSS,
   COLORS,
   DASHER,
+  DODGE,
   FIELD_MARGIN,
   GOAL_LINE_Y,
   HEIGHT,
@@ -165,9 +166,22 @@ function drawField(ctx: CanvasRenderingContext2D, game: Game) {
 // ------------------------------------------------------------------ actors
 
 function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
-  const { x, lane, invuln, shieldCharges } = game.player;
+  const { x, lane, invuln, shieldCharges, dodgeTimer } = game.player;
   const y = PLAYER.y;
   const r = PLAYER.radius;
+
+  // Dodge: an expanding cyan ring pulse marks the intangible window.
+  if (dodgeTimer > 0) {
+    const t = dodgeTimer / DODGE.duration; // 1 → 0
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = `rgba(0,229,255,${0.55 * t})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 4 + (1 - t) * 26, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Long invulnerability (a PULSE/BARRIER shield) shows as a bubble instead of
   // blinking; only the brief post-hit i-frames blink.
@@ -274,6 +288,7 @@ const PI2 = Math.PI * 2;
 
 function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
   if (enemy.kind === 'hazard') return drawHazard(ctx, enemy);
+  if (enemy.kind === 'superdampener') return drawSuperHazard(ctx, enemy);
   if (enemy.kind === 'boss') return drawBoss(ctx, enemy);
 
   const body = enemy.hitFlash > 0 ? '#ffffff' : enemy.color;
@@ -658,6 +673,50 @@ function drawHazard(ctx: CanvasRenderingContext2D, enemy: Enemy) {
     ctx.lineTo(Math.cos(a) * spoke, Math.sin(a) * spoke);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/**
+ * A super-dampener: like a hazard but nastier — twin counter-rotating rings, a
+ * bold X, and a hot-violet glow that pulses to read as "this wipes everything".
+ */
+function drawSuperHazard(ctx: CanvasRenderingContext2D, enemy: Enemy) {
+  const { x, y, radius } = enemy;
+  const pulse = 1 + Math.sin(enemy.age * 10) * 0.16;
+  const r = radius * pulse;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = enemy.color;
+  ctx.shadowBlur = 26;
+  ctx.strokeStyle = enemy.color;
+
+  // Outer ring spins one way, inner ring the other.
+  ctx.save();
+  ctx.rotate(enemy.age * 2.4);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.rotate(-enemy.age * 3.1);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+  ctx.stroke();
+  // A bold X — the "strip it all" mark.
+  const d = r * 0.5;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-d, -d);
+  ctx.lineTo(d, d);
+  ctx.moveTo(d, -d);
+  ctx.lineTo(-d, d);
+  ctx.stroke();
+  ctx.restore();
+
   ctx.restore();
 }
 
@@ -1191,9 +1250,11 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   for (const a of Object.values(ABILITY_DEFS)) row(a.color, a.name, a.desc);
 
   y += 10;
-  centered(ctx, 'Dodge pink DAMPENERS — each strips a whole random upgrade', y, '11px', '#ff5cf0');
+  centered(ctx, 'Pink DAMPENERS strip one upgrade · violet SUPER DAMPENERS strip ALL', y, '11px', '#ff5cf0');
+  y += 20;
+  centered(ctx, 'Double-tap your lane to DODGE — slip through enemies & dampeners', y, '11px', COLORS.playerInvuln);
   y += 22;
-  centered(ctx, '← →  move   ·   SPACE = ability   ·   ESC / P = pause', y, '11px', COLORS.textDim);
+  centered(ctx, '← →  move   ·   double-tap = dodge   ·   SPACE = ability   ·   ESC / P = pause', y, '11px', COLORS.textDim);
   y += 30;
   centered(
     ctx,

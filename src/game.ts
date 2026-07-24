@@ -3,6 +3,7 @@ import {
   BOSS,
   COLORS,
   DASHER,
+  DODGE,
   DROP_CATEGORY,
   ENEMY_DEFS,
   ENEMY_SHOT,
@@ -66,6 +67,10 @@ export interface Player {
   shieldCharges: number;
   /** Seconds of remaining post-hit invulnerability. */
   invuln: number;
+  /** Seconds of remaining dodge i-frames (intangible to everything). */
+  dodgeTimer: number;
+  /** Seconds until a dodge can be triggered again. */
+  dodgeCooldown: number;
   fireCooldown: number;
 }
 
@@ -174,6 +179,7 @@ export class Game {
     const ability = this.input.consumeAbility();
     const pause = this.input.consumePause();
     const help = this.input.consumeHelp();
+    const dodge = this.input.consumeDodge();
     const menuToggle = pause || help;
 
     if (this.phase !== 'playing') {
@@ -204,6 +210,9 @@ export class Game {
     this.elapsed += dt;
     this.effects.tick(dt);
     this.overdriveTimer = Math.max(0, this.overdriveTimer - dt);
+    // A dodge fires only when you double-tap the lane you already occupy, so a
+    // quick lane switch is never mistaken for one. Check before the lane moves.
+    if (dodge !== null && dodge === this.player.lane) this.tryDodge();
     if (laneTarget !== null) {
       this.player.lane = clamp(laneTarget, 0, LANE_COUNT - 1) as LaneIndex;
     }
@@ -228,6 +237,24 @@ export class Game {
       Math.abs(delta) <= step ? target : this.player.x + Math.sign(delta) * step;
 
     this.player.invuln = Math.max(0, this.player.invuln - dt);
+    this.player.dodgeTimer = Math.max(0, this.player.dodgeTimer - dt);
+    this.player.dodgeCooldown = Math.max(0, this.player.dodgeCooldown - dt);
+  }
+
+  /** True while nothing can hurt or strip the player (post-hit i-frames or a dodge). */
+  private get invulnerable(): boolean {
+    return this.player.invuln > 0 || this.player.dodgeTimer > 0;
+  }
+
+  /** Flick intangible for a moment: dodge past enemies, shots, and dampeners. */
+  private tryDodge() {
+    if (this.player.dodgeCooldown > 0 || this.player.dodgeTimer > 0) return;
+    this.player.dodgeTimer = DODGE.duration;
+    this.player.dodgeCooldown = DODGE.cooldown;
+    this.shake = Math.min(FX.shakeOnHit, this.shake + 4);
+    this.burst(this.player.x, PLAYER.y, COLORS.player, 14, 300);
+    this.addFloater(this.player.x, PLAYER.y - 40, 'DODGE', COLORS.playerInvuln);
+    this.events.emit('dodge', {});
   }
 
   private get levels() {
@@ -406,6 +433,7 @@ export class Game {
       radius: def.radius,
       color: def.color,
       stripsPowerups: def.stripsPowerups ?? false,
+      stripsAll: def.stripsAll ?? false,
       armor: def.armor ?? 0,
       maxArmor: def.armor ?? 0,
       weaveInterval: def.weaveInterval ?? 0,
@@ -877,14 +905,35 @@ export class Game {
 
   /**
    * A dampener reaching the player strips one random upgrade — from the active
-   * weapon or the universal buffs — unless a shield absorbs it.
+   * weapon or the universal buffs — unless a shield absorbs it. A super-dampener
+   * instead wipes every held buff. A dodge slips past either unharmed.
    */
   private stripPlayer(source: Enemy) {
+    if (this.player.dodgeTimer > 0) {
+      this.addFloater(this.player.x, PLAYER.y - 34, 'DODGED', COLORS.playerInvuln);
+      return;
+    }
     if (this.player.shieldCharges > 0) {
       this.player.shieldCharges -= 1;
       this.addFloater(this.player.x, PLAYER.y - 34, 'BLOCKED', COLORS.shield);
       this.burst(source.x, source.y, COLORS.shield, 12, 220);
       this.events.emit('shieldBlock', {});
+      return;
+    }
+
+    if (source.stripsAll) {
+      const lost = this.effects.stripAll();
+      this.shake = FX.shakeOnHit * 1.4;
+      this.flash(source.color, 0.45);
+      this.hitStop = Math.max(this.hitStop, 0.06);
+      this.burst(this.player.x, PLAYER.y, source.color, 28, 320);
+      this.addFloater(
+        this.player.x,
+        PLAYER.y - 34,
+        lost > 0 ? 'ALL BUFFS LOST' : 'SUPER DAMPENER',
+        source.color,
+      );
+      this.events.emit('dampened', { lost });
       return;
     }
 
@@ -902,7 +951,7 @@ export class Game {
   }
 
   private damagePlayer(amount: number) {
-    if (this.player.invuln > 0) return;
+    if (this.invulnerable) return;
 
     this.player.invuln = PLAYER.invulnTime;
     this.shake = FX.shakeOnHit;
@@ -993,6 +1042,8 @@ function createPlayer(): Player {
     maxHealth: PLAYER.maxHealth,
     shieldCharges: 0,
     invuln: 0,
+    dodgeTimer: 0,
+    dodgeCooldown: 0,
     fireCooldown: 0,
   };
 }

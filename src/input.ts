@@ -1,4 +1,4 @@
-import { ABILITY_BUTTON, LANE_COUNT, MUTE_BUTTON, PAUSE_BUTTON } from './config';
+import { ABILITY_BUTTON, DODGE, LANE_COUNT, MUTE_BUTTON, PAUSE_BUTTON } from './config';
 
 /**
  * What the game polls each frame for player intent. The DOM `Input` implements
@@ -15,6 +15,8 @@ export interface InputSource {
   consumePause(): boolean;
   /** Whether help was requested (H key) since the last call. */
   consumeHelp(): boolean;
+  /** A lane a dodge was requested in (double-tap), returned once then cleared. */
+  consumeDodge(): number | null;
 }
 
 /**
@@ -29,12 +31,33 @@ export class Input implements InputSource {
   private pause = false;
   private help = false;
   private mute = false;
+  private dodge: number | null = null;
+  /** Last lane tapped and when, so a quick repeat tap reads as a double-tap. */
+  private lastTapLane: number | null = null;
+  private lastTapAt = 0;
   private disposers: Array<() => void> = [];
   private canvas: HTMLCanvasElement;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.bind();
+  }
+
+  /**
+   * Records a lane selection and detects a double-tap of the same lane, which
+   * requests a dodge. The game only acts on the dodge if that lane is the one
+   * the ship already occupies, so a quick lane-change never dodges by accident.
+   */
+  private tapLane(lane: number) {
+    this.laneTarget = lane;
+    const now = performance.now();
+    if (this.lastTapLane === lane && now - this.lastTapAt <= DODGE.doubleTapMs) {
+      this.dodge = lane;
+      this.lastTapLane = null; // consumed, so a third tap starts a fresh pair
+    } else {
+      this.lastTapLane = lane;
+      this.lastTapAt = now;
+    }
   }
 
   private bind() {
@@ -54,12 +77,12 @@ export class Input implements InputSource {
         case 'ArrowLeft':
         case 'a':
         case 'A':
-          this.laneTarget = 0;
+          this.tapLane(0);
           break;
         case 'ArrowRight':
         case 'd':
         case 'D':
-          this.laneTarget = LANE_COUNT - 1;
+          this.tapLane(LANE_COUNT - 1);
           break;
         case ' ':
           // Space starts a run on menus and fires the ability during play.
@@ -106,7 +129,7 @@ export class Input implements InputSource {
         this.ability = true;
         return;
       }
-      this.laneTarget = fx < 0.5 ? 0 : LANE_COUNT - 1;
+      this.tapLane(fx < 0.5 ? 0 : LANE_COUNT - 1);
       this.confirm = true;
     };
 
@@ -146,6 +169,12 @@ export class Input implements InputSource {
   consumeHelp(): boolean {
     const value = this.help;
     this.help = false;
+    return value;
+  }
+
+  consumeDodge(): number | null {
+    const value = this.dodge;
+    this.dodge = null;
     return value;
   }
 
