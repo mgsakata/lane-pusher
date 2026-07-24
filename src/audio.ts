@@ -49,12 +49,16 @@ interface NoiseOpts {
 }
 
 /**
- * A light, sparse bass line (16 eighth-notes) in a minor progression; 0 = rest.
- * Kept quiet and simple so it drives without competing with the SFX.
+ * A light loop over 16 eighth-notes: an Am–F–C–G feel. BASS is the low root
+ * support; LEAD is a mid/high melody that carries on small speakers. 0 = rest.
  */
 const BASS = [
-  110, 0, 164.81, 0, 130.81, 0, 164.81, 0,
-  87.31, 0, 130.81, 0, 98, 0, 146.83, 0,
+  110, 0, 110, 0, 87.31, 0, 87.31, 0,
+  130.81, 0, 130.81, 0, 98, 0, 98, 0,
+];
+const LEAD = [
+  440, 523.25, 659.25, 523.25, 349.23, 440, 523.25, 440,
+  523.25, 659.25, 783.99, 659.25, 392, 493.88, 587.33, 493.88,
 ];
 const STEP_SECONDS = 60 / 96 / 2; // eighth-notes at 96 bpm
 
@@ -83,7 +87,7 @@ export class SoundEngine {
       this.master.gain.value = this.muted ? 0 : MASTER_GAIN;
       this.master.connect(this.ctx.destination);
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.55;
+      this.musicGain.gain.value = 0.8;
       this.musicGain.connect(this.master);
       this.noiseBuffer = this.makeNoise();
     }
@@ -148,46 +152,82 @@ export class SoundEngine {
   private scheduleMusic() {
     if (!this.ctx) return;
     while (this.nextNoteTime < this.ctx.currentTime + 0.12) {
-      const freq = BASS[this.musicStep];
-      if (freq > 0) this.musicTone(freq, this.nextNoteTime);
-      if (this.musicStep % 4 === 0) this.musicKick(this.nextNoteTime);
+      const step = this.musicStep;
+      const t = this.nextNoteTime;
+      if (BASS[step] > 0) this.musicBass(BASS[step], t);
+      if (LEAD[step] > 0) this.musicLead(LEAD[step], t);
+      if (step % 4 === 0) this.musicKick(t);
+      if (step % 2 === 1) this.musicHat(t);
       this.nextNoteTime += STEP_SECONDS;
-      this.musicStep = (this.musicStep + 1) % BASS.length;
+      this.musicStep = (step + 1) % LEAD.length;
     }
   }
 
-  private musicTone(freq: number, t: number) {
+  private musicBass(freq: number, t: number) {
     if (!this.ctx || !this.musicGain) return;
     const osc = this.ctx.createOscillator();
     osc.type = 'triangle';
     osc.frequency.value = freq;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 700;
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.06, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    osc.connect(g);
+    g.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.6);
+  }
+
+  /** The audible melody line; a plucky filtered saw sits well on any speaker. */
+  private musicLead(freq: number, t: number) {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 2400;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
     osc.connect(filter);
     filter.connect(g);
     g.connect(this.musicGain);
     osc.start(t);
-    osc.stop(t + 0.34);
+    osc.stop(t + 0.3);
   }
 
   private musicKick(t: number) {
     if (!this.ctx || !this.musicGain) return;
     const osc = this.ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(70, t);
-    osc.frequency.exponentialRampToValueAtTime(32, t + 0.12);
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.11);
     const g = this.ctx.createGain();
-    g.gain.setValueAtTime(0.14, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
     osc.connect(g);
     g.connect(this.musicGain);
     osc.start(t);
-    osc.stop(t + 0.16);
+    osc.stop(t + 0.18);
+  }
+
+  private musicHat(t: number) {
+    if (!this.ctx || !this.musicGain || !this.noiseBuffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 7000;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(filter);
+    filter.connect(g);
+    g.connect(this.musicGain);
+    src.start(t);
+    src.stop(t + 0.06);
   }
 
   // ---------------------------------------------------------------- effects

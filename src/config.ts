@@ -63,7 +63,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileRadius: 6,
     pierce: false,
     buffs: ['rapid', 'twin'],
-    switchWeight: 5,
+    switchWeight: 2,
   },
   scatter: {
     kind: 'scatter',
@@ -76,7 +76,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileRadius: 5,
     pierce: false,
     buffs: ['spread', 'punch'],
-    switchWeight: 5,
+    switchWeight: 2,
   },
   railgun: {
     kind: 'railgun',
@@ -89,7 +89,7 @@ export const WEAPON_DEFS: Record<WeaponKind, WeaponDef> = {
     projectileRadius: 8,
     pierce: true,
     buffs: ['charge', 'overload'],
-    switchWeight: 4,
+    switchWeight: 2,
   },
 };
 
