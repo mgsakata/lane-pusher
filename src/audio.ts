@@ -48,12 +48,27 @@ interface NoiseOpts {
   delay?: number;
 }
 
+/**
+ * A light, sparse bass line (16 eighth-notes) in a minor progression; 0 = rest.
+ * Kept quiet and simple so it drives without competing with the SFX.
+ */
+const BASS = [
+  110, 0, 164.81, 0, 130.81, 0, 164.81, 0,
+  87.31, 0, 130.81, 0, 98, 0, 146.83, 0,
+];
+const STEP_SECONDS = 60 / 96 / 2; // eighth-notes at 96 bpm
+
 export class SoundEngine {
   muted = readMuted();
 
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private musicGain: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
+
+  private musicTimer: number | null = null;
+  private musicStep = 0;
+  private nextNoteTime = 0;
 
   /** Must be called from a user gesture to unlock audio in the browser. */
   resume() {
@@ -67,6 +82,9 @@ export class SoundEngine {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.muted ? 0 : MASTER_GAIN;
       this.master.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = 0.55;
+      this.musicGain.connect(this.master);
       this.noiseBuffer = this.makeNoise();
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -100,8 +118,76 @@ export class SoundEngine {
     e.on('enemyFire', () => this.enemyFire());
     e.on('waveStart', ({ boss }) => this.waveStart(boss));
     e.on('waveClear', () => this.waveClear());
-    e.on('gameOver', () => this.gameOver());
-    e.on('gameStart', () => this.uiConfirm());
+    e.on('gameOver', () => {
+      this.gameOver();
+      this.stopMusic();
+    });
+    e.on('gameStart', () => {
+      this.uiConfirm();
+      this.startMusic();
+    });
+  }
+
+  // ----------------------------------------------------------------- music
+
+  private startMusic() {
+    if (!this.ctx || this.musicTimer !== null) return;
+    this.musicStep = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.1;
+    this.musicTimer = window.setInterval(() => this.scheduleMusic(), 25);
+  }
+
+  private stopMusic() {
+    if (this.musicTimer !== null) {
+      clearInterval(this.musicTimer);
+      this.musicTimer = null;
+    }
+  }
+
+  /** Lookahead scheduler: queue notes a little ahead of the audio clock. */
+  private scheduleMusic() {
+    if (!this.ctx) return;
+    while (this.nextNoteTime < this.ctx.currentTime + 0.12) {
+      const freq = BASS[this.musicStep];
+      if (freq > 0) this.musicTone(freq, this.nextNoteTime);
+      if (this.musicStep % 4 === 0) this.musicKick(this.nextNoteTime);
+      this.nextNoteTime += STEP_SECONDS;
+      this.musicStep = (this.musicStep + 1) % BASS.length;
+    }
+  }
+
+  private musicTone(freq: number, t: number) {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    osc.connect(filter);
+    filter.connect(g);
+    g.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.34);
+  }
+
+  private musicKick(t: number) {
+    if (!this.ctx || !this.musicGain) return;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(70, t);
+    osc.frequency.exponentialRampToValueAtTime(32, t + 0.12);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    osc.connect(g);
+    g.connect(this.musicGain);
+    osc.start(t);
+    osc.stop(t + 0.16);
   }
 
   // ---------------------------------------------------------------- effects
