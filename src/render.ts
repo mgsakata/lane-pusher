@@ -1386,7 +1386,7 @@ function drawLeaderboard(ctx: CanvasRenderingContext2D, topY: number, maxRows: n
 function drawBoardColumn(
   ctx: CanvasRenderingContext2D,
   title: string,
-  rows: { name: string; score: number }[],
+  rows: { name: string; score: number; wave?: number }[],
   xLeft: number,
   xRight: number,
   topY: number,
@@ -1413,10 +1413,20 @@ function drawBoardColumn(
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'left';
     // Trim long names so the rank/name never collide with the score.
-    const name = r.name.length > 8 ? `${r.name.slice(0, 8)}…` : r.name;
+    const name = r.name.length > 7 ? `${r.name.slice(0, 7)}…` : r.name;
     ctx.fillText(`${i + 1}.${name}`, xLeft, y);
+
+    const scoreText = String(r.score);
     ctx.textAlign = 'right';
-    ctx.fillText(String(r.score), xRight, y);
+    ctx.fillText(scoreText, xRight, y);
+
+    // The wave reached, as a small dim tag just left of the score.
+    if (r.wave) {
+      const scoreW = ctx.measureText(scoreText).width;
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillStyle = COLORS.textDim;
+      ctx.fillText(`W${r.wave}`, xRight - scoreW - 6, y);
+    }
     y += 18;
   });
 }
