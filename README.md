@@ -76,3 +76,10 @@ npm test               # unit + balance + simulation tests
 npm run build          # production build of the game
 npm run typecheck:server
 ```
+
+## Credits
+
+Lane Pusher is original work with no copied code or assets (all art and audio
+are generated procedurally). See [CREDITS.md](CREDITS.md) for genre inspiration,
+the named techniques it builds on, and the open-source tools used — each with a
+link to its source.
