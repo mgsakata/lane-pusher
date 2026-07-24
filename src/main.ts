@@ -59,7 +59,7 @@ function frame(now: number) {
   if (input.consumeMute()) sound.toggleMute();
 
   game.update(dt);
-  render(ctx, game, sound.muted);
+  render(ctx, game, sound.muted, now / 1000);
 
   requestAnimationFrame(frame);
 }

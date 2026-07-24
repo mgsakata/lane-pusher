@@ -32,8 +32,9 @@ export function render(
   ctx: CanvasRenderingContext2D,
   game: Game,
   muted = false,
+  time = 0,
 ) {
-  drawBackground(ctx, game);
+  drawBackground(ctx, time);
 
   ctx.save();
   if (game.shake > 0) {
@@ -58,25 +59,27 @@ export function render(
   drawHud(ctx, game);
   drawMuteButton(ctx, muted);
   drawBossBar(ctx, game);
-  if (game.phase === 'title' && !game.showLegend) drawTitle(ctx, game);
+  if (game.phase === 'title' && !game.showLegend) drawTitle(ctx, game, time);
   if (game.phase === 'gameover' && !game.showLegend) drawGameOver(ctx, game);
   if (game.paused || game.showLegend) drawLegend(ctx, game.paused);
 }
 
 // -------------------------------------------------------------- atmosphere
 
-function drawBackground(ctx: CanvasRenderingContext2D, game: Game) {
+function drawBackground(ctx: CanvasRenderingContext2D, time: number) {
   const grad = ctx.createLinearGradient(0, 0, 0, HEIGHT);
   grad.addColorStop(0, '#0b1120');
   grad.addColorStop(1, '#05070d');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
+  // Stars drift on a real-time clock so the menus feel alive too.
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   for (const s of STARS) {
-    const y = (s.y + game.elapsed * 34 * s.z) % HEIGHT;
-    ctx.fillStyle = `rgba(130,180,255,${s.z * 0.5})`;
+    const y = (s.y + time * 22 * s.z) % HEIGHT;
+    const twinkle = 0.4 + Math.sin(time * 2 + s.x) * 0.15;
+    ctx.fillStyle = `rgba(130,180,255,${s.z * twinkle})`;
     ctx.beginPath();
     ctx.arc(s.x, y, s.r, 0, Math.PI * 2);
     ctx.fill();
@@ -637,13 +640,23 @@ function drawParticles(ctx: CanvasRenderingContext2D, game: Game) {
 }
 
 function drawFloaters(ctx: CanvasRenderingContext2D, game: Game) {
-  ctx.font = 'bold 16px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.font = 'bold 16px system-ui, sans-serif';
   for (const f of game.floaters) {
-    ctx.globalAlpha = Math.max(0, Math.min(1, f.life / f.maxLife));
+    const t = f.life / f.maxLife; // 1 → 0
+    // Quick pop-in, then a gentle grow as it rises and fades near the end.
+    const pop = Math.min(1, (f.maxLife - f.life) / 0.09);
+    const scale = 0.5 + pop * 0.5 + (1 - t) * 0.2;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, t * 1.4));
+    ctx.translate(f.x, f.y);
+    ctx.scale(scale, scale);
+    ctx.shadowColor = f.color;
+    ctx.shadowBlur = 8;
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, f.x, f.y);
+    ctx.fillText(f.text, 0, 0);
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
 }
@@ -681,10 +694,18 @@ function drawHud(ctx: CanvasRenderingContext2D, game: Game) {
 
   const multiplier = game.comboMultiplier;
   if (multiplier > 1 && game.phase === 'playing') {
+    const pulse = 1 + Math.sin(game.elapsed * 10) * 0.08;
+    ctx.save();
+    ctx.translate(WIDTH / 2, 24);
+    ctx.scale(pulse, pulse);
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = COLORS.player;
+    ctx.shadowBlur = 10;
     ctx.fillStyle = COLORS.player;
     ctx.font = 'bold 20px system-ui, sans-serif';
-    ctx.fillText(`x${multiplier}`, WIDTH / 2, 16);
+    ctx.fillText(`x${multiplier}`, 0, 0);
+    ctx.restore();
   }
 
   // Active weapon, top-centre in its own colour.
@@ -900,9 +921,22 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
 
 // ---------------------------------------------------------------- overlays
 
-function drawTitle(ctx: CanvasRenderingContext2D, game: Game) {
+function drawTitle(ctx: CanvasRenderingContext2D, game: Game, time: number) {
   dimScreen(ctx);
-  centered(ctx, 'LANE PUSHER', HEIGHT / 2 - 90, 'bold 44px', COLORS.player);
+
+  // Neon title: pulsing glow and a gentle breathing scale.
+  ctx.save();
+  ctx.translate(WIDTH / 2, HEIGHT / 2 - 90);
+  ctx.scale(1 + Math.sin(time * 2.2) * 0.02, 1 + Math.sin(time * 2.2) * 0.02);
+  ctx.shadowColor = COLORS.player;
+  ctx.shadowBlur = 18 + (Math.sin(time * 3) * 0.5 + 0.5) * 16;
+  ctx.fillStyle = COLORS.player;
+  ctx.font = 'bold 44px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('LANE PUSHER', 0, 0);
+  ctx.restore();
+
   centered(
     ctx,
     'Tap a lane, or use  ←  →  /  A  D',
@@ -924,7 +958,10 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game) {
     '14px',
     '#ff5cf0',
   );
+  ctx.save();
+  ctx.globalAlpha = 0.6 + (Math.sin(time * 3.2) * 0.5 + 0.5) * 0.4;
   centered(ctx, 'PRESS SPACE OR TAP TO START', HEIGHT / 2 + 78, 'bold 16px', COLORS.text);
+  ctx.restore();
   centered(
     ctx,
     'Tap ? (top-right) or press H for the guide',
