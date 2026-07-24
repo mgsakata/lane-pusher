@@ -1,0 +1,7 @@
+# Safety net for better-sqlite3's native module. With Node pinned to 22.x the
+# install downloads a prebuilt binary and none of this is used — but if a
+# prebuilt is ever missing for the built Node version, these let node-gyp
+# compile from source instead of failing (the earlier deploys died here because
+# the image had no Python).
+[phases.setup]
+aptPkgs = ["python3", "build-essential"]
