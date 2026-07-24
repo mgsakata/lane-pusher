@@ -55,6 +55,10 @@ export function render(
   ctx.restore();
 
   drawVignette(ctx);
+  if (game.effects.timedActive('freeze')) {
+    ctx.fillStyle = 'rgba(127,227,255,0.1)';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
   drawFlash(ctx, game);
 
   drawHud(ctx, game);
@@ -880,7 +884,8 @@ function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
 
 function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   const buffs = game.effects.list();
-  if (buffs.length === 0) return;
+  const timed = game.effects.timedList();
+  if (buffs.length === 0 && timed.length === 0) return;
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
@@ -893,15 +898,20 @@ function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
   const rightEdge = WIDTH - 16;
   const leftLimit = 16;
 
-  // Held buffs read as chips laid out in the HUD strip below the goal line, so
-  // they never overlap the lanes where enemies and the player actually are.
-  // They flow right-to-left and wrap upward only if a row overflows.
-  const chips = buffs.map(({ def, level }) => {
+  // Timed bursts (with a countdown) then persistent buffs, as chips in the HUD
+  // strip below the goal line so they never overlap the lanes. They flow
+  // right-to-left and wrap upward only if a row overflows.
+  const timedChips = timed.map(({ def, remaining }) => {
+    const label = `${def.label} ${remaining.toFixed(1)}`;
+    return { def, label, w: ctx.measureText(label).width + padX * 2 };
+  });
+  const buffChips = buffs.map(({ def, level }) => {
     const maxLevel = def.maxLevel ?? 1;
     const suffix = level >= maxLevel ? 'MAX' : `${level}`;
     const label = maxLevel > 1 ? `${def.label} ${suffix}` : def.label;
     return { def, label, w: ctx.measureText(label).width + padX * 2 };
   });
+  const chips = [...timedChips, ...buffChips];
 
   let x = rightEdge;
   let y = HEIGHT - 64;
@@ -1037,6 +1047,10 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   }
   section('UPGRADES  (permanent, stackable)');
   for (const d of POWERUP_DEFS.filter((d) => d.type === 'buff')) {
+    row(d.color, d.label, d.desc);
+  }
+  section('BURSTS  (timed)');
+  for (const d of POWERUP_DEFS.filter((d) => d.type === 'timed')) {
     row(d.color, d.label, d.desc);
   }
   section('PICKUPS  (instant)');

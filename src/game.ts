@@ -2,6 +2,7 @@ import {
   ABILITY,
   BOSS,
   COLORS,
+  DROP_CATEGORY,
   ENEMY_DEFS,
   ENEMY_SHOT,
   FX,
@@ -181,6 +182,7 @@ export class Game {
     }
 
     this.elapsed += dt;
+    this.effects.tick(dt);
     if (laneTarget !== null) {
       this.player.lane = clamp(laneTarget, 0, LANE_COUNT - 1) as LaneIndex;
     }
@@ -217,7 +219,9 @@ export class Game {
 
     const def = WEAPON_DEFS[this.weapon];
     const levels = this.levels;
-    this.player.fireCooldown += fireCooldown(this.weapon, levels);
+    let cooldown = fireCooldown(this.weapon, levels);
+    if (this.effects.timedActive('frenzy')) cooldown *= POWERUP.frenzyCooldownFactor;
+    this.player.fireCooldown += cooldown;
     this.events.emit('fire', { weapon: this.weapon });
 
     const damage = projectileDamage(this.weapon, levels);
@@ -332,7 +336,7 @@ export class Game {
       if (enemy.hp <= 0) {
         this.kills += 1;
         this.killStreak += 1;
-        this.score += enemy.score * multiplier;
+        this.score += Math.round(enemy.score * multiplier * this.greedMultiplier);
         this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
       }
     }
@@ -390,31 +394,47 @@ export class Game {
   }
 
   /**
-   * Chooses what a pickup grants: a buff for the current weapon, a universal
-   * buff/instant, or a switch to one of the other weapons.
+   * Chooses what a pickup grants using a two-tier roll: first a category
+   * (weapon buff / universal / weapon switch), then an item within it. This
+   * keeps weapon buffs common no matter how many universal power-ups exist.
    */
   private choosePickupContent(): PickupContent {
-    const entries: Array<{ content: PickupContent; weight: number }> = [];
+    type Entry = { content: PickupContent; weight: number };
 
-    for (const kind of WEAPON_DEFS[this.weapon].buffs) {
-      entries.push({ content: { type: 'power', power: kind }, weight: defFor(kind).weight });
-    }
-    for (const kind of UNIVERSAL_DROPS) {
-      entries.push({ content: { type: 'power', power: kind }, weight: defFor(kind).weight });
-    }
-    for (const def of Object.values(WEAPON_DEFS)) {
-      if (def.kind === this.weapon) continue;
-      entries.push({ content: { type: 'weapon', weapon: def.kind }, weight: def.switchWeight });
-    }
+    const weaponBuffs: Entry[] = WEAPON_DEFS[this.weapon].buffs.map((kind) => ({
+      content: { type: 'power', power: kind },
+      weight: defFor(kind).weight,
+    }));
+    const universals: Entry[] = UNIVERSAL_DROPS.map((kind) => ({
+      content: { type: 'power', power: kind },
+      weight: defFor(kind).weight,
+    }));
+    const switches: Entry[] = Object.values(WEAPON_DEFS)
+      .filter((def) => def.kind !== this.weapon)
+      .map((def) => ({
+        content: { type: 'weapon', weapon: def.kind },
+        weight: def.switchWeight,
+      }));
 
-    const chosen = pickWeighted(entries, (e) => e.weight);
+    const categories = [
+      { items: weaponBuffs, weight: DROP_CATEGORY.weaponBuff },
+      { items: universals, weight: DROP_CATEGORY.universal },
+      { items: switches, weight: DROP_CATEGORY.weaponSwitch },
+    ].filter((c) => c.items.length > 0);
+
+    const category = pickWeighted(categories, (c) => c.weight);
+    const chosen = category && pickWeighted(category.items, (e) => e.weight);
     return chosen ? chosen.content : { type: 'power', power: 'slow' };
   }
 
   // -------------------------------------------------------------- motion
 
   private moveEntities(dt: number) {
-    const enemyScale = enemySpeedFactor(this.effects.level('slow'));
+    // FREEZE halts enemies entirely (their timers use this scale, so they also
+    // stop moving, weaving, and firing); otherwise SLOW applies.
+    const enemyScale = this.effects.timedActive('freeze')
+      ? 0
+      : enemySpeedFactor(this.effects.level('slow'));
 
     for (const enemy of this.enemies) {
       enemy.age += dt;
@@ -604,13 +624,19 @@ export class Game {
     }
   }
 
+  /** GREED score multiplier for the current buff level. */
+  private get greedMultiplier(): number {
+    const table = POWERUP.greedMultByLevel;
+    return table[Math.min(this.effects.level('greed'), table.length - 1)];
+  }
+
   private killEnemy(enemy: Enemy) {
     this.kills += 1;
     this.killStreak += 1;
     this.chargeAbility();
 
     const multiplier = this.comboMultiplier;
-    const points = enemy.score * multiplier;
+    const points = Math.round(enemy.score * multiplier * this.greedMultiplier);
     this.score += points;
 
     this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 260);
@@ -618,6 +644,15 @@ export class Game {
 
     if (multiplier > 1) {
       this.addFloater(enemy.x, enemy.y, `${points}  x${multiplier}`, COLORS.text);
+    }
+
+    // VAMP: a chance to heal on a kill.
+    const vampLevel = this.effects.level('vamp');
+    if (vampLevel > 0 && this.player.health < this.player.maxHealth) {
+      if (Math.random() < POWERUP.vampChanceByLevel[vampLevel]) {
+        this.player.health += 1;
+        this.addFloater(this.player.x, PLAYER.y - 34, '+1', '#ff5c8a');
+      }
     }
 
     this.events.emit('kill', {
@@ -693,12 +728,21 @@ export class Game {
       return;
     }
 
+    const def = defFor(content.power);
     const instant = this.effects.apply(content.power);
-    if (defFor(content.power).type === 'buff') {
+    if (def.type === 'buff' || def.type === 'timed') {
       this.events.emit('buffUp', {
         kind: content.power,
         level: this.effects.level(content.power),
       });
+      if (def.type === 'timed') {
+        this.flash(def.color, 0.35);
+        this.addFloater(this.player.x, PLAYER.y - 40, `${def.label}!`, def.color);
+      }
+    }
+    if (instant.maxHealth > 0) {
+      this.player.maxHealth += instant.maxHealth;
+      this.player.health += instant.maxHealth;
     }
     if (instant.heal > 0) {
       this.player.health = Math.min(
@@ -722,7 +766,7 @@ export class Game {
       if (enemy.stripsPowerups || enemy.kind === 'boss') continue;
       this.kills += 1;
       this.killStreak += 1;
-      this.score += enemy.score * multiplier;
+      this.score += Math.round(enemy.score * multiplier * this.greedMultiplier);
       this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
     }
 

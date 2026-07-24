@@ -5,6 +5,8 @@ import type { PowerUpDef, PowerUpKind } from './types';
 export interface InstantEffect {
   heal: number;
   shieldCharges: number;
+  /** Extra max health (VIT). */
+  maxHealth: number;
   /** Detonate: clear regular enemies on screen. */
   bomb: boolean;
 }
@@ -15,30 +17,60 @@ export interface ActiveBuff {
   level: number;
 }
 
+/** A running timed effect with seconds remaining, for the HUD. */
+export interface ActiveTimed {
+  def: PowerUpDef;
+  remaining: number;
+}
+
+const NO_INSTANT: InstantEffect = {
+  heal: 0,
+  shieldCharges: 0,
+  maxHealth: 0,
+  bomb: false,
+};
+
 /**
- * Tracks held buffs and their levels. Buffs persist indefinitely once
- * collected and are only lost when a hazard strips them; re-collecting a
- * leveled buff raises its level up to the def's maxLevel. Instant power-ups
- * (HEAL, SHLD, BOMB) are reported back to the game instead of being stored
- * here, since they change player state rather than weapon state.
+ * Tracks held buffs (persistent, leveled, stripped by hazards) and timed
+ * effects (burst power-ups that count down and expire). Instant power-ups
+ * (HEAL/SHLD/VIT/BOMB) are reported back to the game rather than stored, since
+ * they change player state.
  */
 export class Effects {
   private levels = new Map<PowerUpKind, number>();
+  private timed = new Map<PowerUpKind, number>();
 
-  /** Applies a pickup. Re-collecting a buff raises its level up to maxLevel. */
+  /** Applies a pickup, routing by its type. */
   apply(kind: PowerUpKind): InstantEffect {
     const def = defFor(kind);
+
     if (def.type === 'buff') {
       const max = def.maxLevel ?? 1;
       const next = Math.min((this.levels.get(kind) ?? 0) + 1, max);
       this.levels.set(kind, next);
-      return { heal: 0, shieldCharges: 0, bomb: false };
+      return NO_INSTANT;
     }
+
+    if (def.type === 'timed') {
+      this.timed.set(kind, def.duration ?? 0);
+      return NO_INSTANT;
+    }
+
     return {
       heal: kind === 'heal' ? POWERUP.healAmount : 0,
       shieldCharges: kind === 'shield' ? POWERUP.shieldCharges : 0,
+      maxHealth: kind === 'vit' ? POWERUP.vitalityBonus : 0,
       bomb: kind === 'bomb',
     };
+  }
+
+  /** Counts down timed effects. */
+  tick(dt: number) {
+    for (const [kind, remaining] of this.timed) {
+      const next = remaining - dt;
+      if (next <= 0) this.timed.delete(kind);
+      else this.timed.set(kind, next);
+    }
   }
 
   /** Current level of a buff, or 0 if it is not held. */
@@ -57,6 +89,11 @@ export class Effects {
     return (this.levels.get(kind) ?? 0) > 0;
   }
 
+  /** Whether a timed effect is currently running. */
+  timedActive(kind: PowerUpKind): boolean {
+    return (this.timed.get(kind) ?? 0) > 0;
+  }
+
   /** Active buffs in a stable order, for the HUD. */
   list(): ActiveBuff[] {
     return POWERUP_DEFS.filter((d) => this.levels.has(d.kind)).map((def) => ({
@@ -65,7 +102,14 @@ export class Effects {
     }));
   }
 
-  /** Clears every held buff and returns how many were lost. */
+  /** Running timed effects, longest-remaining first, for the HUD. */
+  timedList(): ActiveTimed[] {
+    return [...this.timed.entries()]
+      .map(([kind, remaining]) => ({ def: defFor(kind), remaining }))
+      .sort((a, b) => b.remaining - a.remaining);
+  }
+
+  /** Clears every held buff (timed bursts survive) and returns how many were lost. */
   stripAll(): number {
     const lost = this.levels.size;
     this.levels.clear();
@@ -74,6 +118,7 @@ export class Effects {
 
   reset() {
     this.levels.clear();
+    this.timed.clear();
   }
 }
 

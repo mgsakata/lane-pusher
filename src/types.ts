@@ -116,12 +116,18 @@ export type PowerUpKind =
   // Railgun buffs
   | 'charge'
   | 'overload'
-  // Universal buffs
+  // Universal persistent buffs
   | 'slow'
+  | 'vamp'
+  | 'greed'
+  // Universal timed bursts
+  | 'frenzy'
+  | 'freeze'
   // Universal instants
   | 'shield'
   | 'heal'
-  | 'bomb';
+  | 'bomb'
+  | 'vit';
 
 export interface PowerUpDef {
   kind: PowerUpKind;
@@ -130,9 +136,10 @@ export interface PowerUpDef {
   desc: string;
   /**
    * 'buff' effects persist until a hazard strips them; 'instant' effects
-   * (heal, shield) apply the moment they are collected.
+   * (heal, shield) apply the moment collected; 'timed' effects run for
+   * `duration` seconds then expire.
    */
-  type: 'buff' | 'instant';
+  type: 'buff' | 'instant' | 'timed';
   color: string;
   weight: number;
   /**
@@ -140,6 +147,8 @@ export interface PowerUpDef {
    * on/off buff). Leveled buffs scale their effect with level.
    */
   maxLevel?: number;
+  /** Seconds a 'timed' effect lasts. */
+  duration?: number;
 }
 
 /** A pickup either grants a power-up or switches the active weapon. */

@@ -292,15 +292,34 @@ export const POWERUP_DEFS: PowerUpDef[] = [
   // Railgun
   { kind: 'charge', label: 'CHARGE', desc: 'Railgun: faster fire rate', type: 'buff', color: '#c77dff', weight: 10, maxLevel: 3 },
   { kind: 'overload', label: 'OVERLD', desc: 'Railgun: more damage', type: 'buff', color: '#c77dff', weight: 8, maxLevel: 3 },
-  // Universal
+  // Universal persistent buffs
   { kind: 'slow', label: 'SLOW', desc: 'Enemies move slower', type: 'buff', color: '#b8c0ff', weight: 5, maxLevel: 3 },
+  { kind: 'vamp', label: 'VAMP', desc: 'Chance to heal on a kill', type: 'buff', color: '#ff5c8a', weight: 5, maxLevel: 3 },
+  { kind: 'greed', label: 'GREED', desc: 'Score multiplier', type: 'buff', color: '#f4c430', weight: 4, maxLevel: 3 },
+  // Universal timed bursts
+  { kind: 'frenzy', label: 'FRENZY', desc: 'Brief burst of fast fire', type: 'timed', color: '#ff9f1c', weight: 5, duration: 6 },
+  { kind: 'freeze', label: 'FREEZE', desc: 'Freeze all enemies briefly', type: 'timed', color: '#7fe3ff', weight: 4, duration: 3.5 },
+  // Universal instants
   { kind: 'shield', label: 'SHLD', desc: 'Blocks the next 2 hits', type: 'instant', color: '#4361ee', weight: 6 },
   { kind: 'heal', label: 'HEAL', desc: 'Restore 1 health', type: 'instant', color: '#3ddc97', weight: 5 },
+  { kind: 'vit', label: 'VIT', desc: '+1 max health', type: 'instant', color: '#2ec4b6', weight: 3 },
   { kind: 'bomb', label: 'BOMB', desc: 'Vaporize all enemies', type: 'instant', color: '#ef476f', weight: 4 },
 ];
 
 /** Buffs/instants that can drop regardless of the active weapon. */
-export const UNIVERSAL_DROPS: PowerUpKind[] = ['slow', 'shield', 'heal', 'bomb'];
+export const UNIVERSAL_DROPS: PowerUpKind[] = [
+  'slow', 'vamp', 'greed', 'frenzy', 'freeze', 'shield', 'heal', 'vit', 'bomb',
+];
+
+/**
+ * Two-tier drop selection: first a category, then an item within it. Keeps
+ * weapon buffs common no matter how many universal power-ups exist.
+ */
+export const DROP_CATEGORY = {
+  weaponBuff: 55,
+  universal: 30,
+  weaponSwitch: 15,
+};
 
 export const POWERUP = {
   /** Seconds between pickup spawns. */
@@ -313,6 +332,14 @@ export const POWERUP = {
   /** Hits absorbed by a single SHLD pickup. */
   shieldCharges: 2,
   healAmount: 1,
+  /** VIT raises max health by this much. */
+  vitalityBonus: 1,
+  /** FRENZY multiplies the fire cooldown by this (lower = faster). */
+  frenzyCooldownFactor: 0.35,
+  /** VAMP heal-on-kill chance per level. */
+  vampChanceByLevel: [0, 0.08, 0.14, 0.2],
+  /** GREED score multiplier per level. */
+  greedMultByLevel: [1, 1.5, 2, 2.5],
 };
 
 // --------------------------------------------------------------- ability

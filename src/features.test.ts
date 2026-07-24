@@ -1,9 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOSS, PLAYER, laneCenterX } from './config';
 import { Emitter } from './events';
 import { Game } from './game';
 import { ScriptedInput } from './testing/sim';
-import type { Enemy, Pickup } from './types';
+import type { Enemy, Pickup, PowerUpKind } from './types';
+
+function powerPickup(power: PowerUpKind, lane: number): Pickup {
+  return {
+    id: 999,
+    content: { type: 'power', power },
+    lane: lane as 0 | 1,
+    x: laneCenterX(lane),
+    y: PLAYER.y,
+    radius: 18,
+    color: '#000',
+    label: power,
+    age: 0,
+  };
+}
 
 function bombPickup(lane: number): Pickup {
   return {
@@ -154,6 +168,85 @@ describe('pause and help', () => {
     input.press();
     game.update(1 / 60);
     expect(game.phase).toBe('playing');
+  });
+});
+
+describe('new power-ups', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('FREEZE halts enemy movement', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.effects.apply('freeze');
+    game.player.lane = 0;
+    game.enemies = [
+      makeBoss({ kind: 'grunt', lane: 1, y: 100, speed: 220, radius: 20, hp: 5, maxHp: 5 }),
+    ];
+    const y0 = game.enemies[0].y;
+    game.update(1 / 60);
+    expect(game.enemies[0].y).toBe(y0);
+  });
+
+  it('FRENZY shortens the fire cooldown', () => {
+    const base = new Game(new ScriptedInput());
+    base.start();
+    base.player.fireCooldown = 0;
+    base.update(1 / 60);
+
+    const frenzied = new Game(new ScriptedInput());
+    frenzied.start();
+    frenzied.effects.apply('frenzy');
+    frenzied.player.fireCooldown = 0;
+    frenzied.update(1 / 60);
+
+    expect(frenzied.player.fireCooldown).toBeLessThan(base.player.fireCooldown);
+  });
+
+  it('VIT raises max health', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    const before = game.player.maxHealth;
+    game.pickups = [powerPickup('vit', 0)];
+    game.update(1 / 60);
+    expect(game.player.maxHealth).toBe(before + 1);
+  });
+
+  it('GREED multiplies kill score', () => {
+    const gain = (levels: number) => {
+      const game = new Game(new ScriptedInput());
+      game.start();
+      for (let i = 0; i < levels; i += 1) game.effects.apply('greed');
+      game.player.lane = 0;
+      game.player.x = laneCenterX(0);
+      game.enemies = [
+        makeBoss({ kind: 'grunt', score: 100, hp: 2, maxHp: 2, y: 200, radius: 20 }),
+      ];
+      game.pickups = [bombPickup(0)];
+      const before = game.score;
+      game.update(1 / 60);
+      return game.score - before;
+    };
+    expect(gain(2)).toBeGreaterThan(gain(0));
+  });
+
+  it('VAMP heals on a kill when the roll succeeds', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0); // always under the heal chance
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.effects.apply('vamp');
+    game.player.health = 2;
+    const enemy = makeBoss({ kind: 'grunt', hp: 1, maxHp: 1, y: 400, radius: 20, lane: 0 });
+    game.enemies = [enemy];
+    game.projectiles = [
+      { id: 1, lane: 0, x: enemy.x, y: enemy.y, radius: 6, damage: 5, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+    ];
+
+    game.update(1 / 60);
+
+    expect(game.enemies.some((e) => e.id === enemy.id)).toBe(false);
+    expect(game.player.health).toBe(3);
   });
 });
 

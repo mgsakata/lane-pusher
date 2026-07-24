@@ -55,3 +55,32 @@ describe('Effects leveling', () => {
     );
   });
 });
+
+describe('timed and instant effects', () => {
+  it('a timed burst activates and then expires', () => {
+    const e = new Effects();
+    expect(e.timedActive('frenzy')).toBe(false);
+    e.apply('frenzy');
+    expect(e.timedActive('frenzy')).toBe(true);
+    e.tick(0.5);
+    expect(e.timedActive('frenzy')).toBe(true); // still running
+    e.tick(999);
+    expect(e.timedActive('frenzy')).toBe(false);
+  });
+
+  it('timed bursts are listed with remaining time and survive a strip', () => {
+    const e = new Effects();
+    e.apply('freeze');
+    e.apply('rapid'); // a buff, gets stripped
+    expect(e.timedList().find((t) => t.def.kind === 'freeze')?.remaining).toBeGreaterThan(0);
+    e.stripAll();
+    expect(e.timedActive('freeze')).toBe(true); // bursts aren't stripped
+    expect(e.level('rapid')).toBe(0);
+  });
+
+  it('VIT reports a max-health instant', () => {
+    const e = new Effects();
+    expect(e.apply('vit').maxHealth).toBeGreaterThan(0);
+    expect(e.apply('heal').maxHealth).toBe(0);
+  });
+});
