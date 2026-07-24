@@ -1,6 +1,7 @@
 import {
   ABILITY_DEFS,
   BOSS,
+  bossFireLanes,
   COLORS,
   DASHER,
   DODGE,
@@ -323,14 +324,74 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
     case 'phantom':
       drawPhantom(ctx, enemy, body);
       break;
+    case 'warden':
+      drawWarden(ctx, enemy, body);
+      break;
     default:
       drawGrunt(ctx, enemy, body);
   }
   ctx.restore();
 
+  // A gold shield ring marks enemies a living warden is protecting.
+  if (enemy.warded) drawWardedRing(ctx, enemy);
+
   if (enemy.maxHp > 1) {
     drawHealthBar(ctx, enemy.x, enemy.y - enemy.radius - 12, enemy.radius, enemy);
   }
+}
+
+/** The WARDEN elite: a gold core inside a rotating shield of orbiting nodes. */
+function drawWarden(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+
+  // Rotating shield ring with nodes.
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(e.age * 1.2);
+  ctx.strokeStyle = 'rgba(255,215,0,0.7)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, r + 6, 0, PI2);
+  ctx.stroke();
+  ctx.fillStyle = '#ffd700';
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i / 6) * PI2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * (r + 6), Math.sin(a) * (r + 6), 2.6, 0, PI2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Hexagonal core.
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i += 1) {
+    const a = (Math.PI / 3) * i + Math.PI / 6;
+    const px = x + Math.cos(a) * r * 0.8;
+    const py = y + Math.sin(a) * r * 0.8;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(10,12,18,0.75)';
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.3, 0, PI2);
+  ctx.fill();
+}
+
+/** A faint gold bubble over an enemy currently shielded by a warden. */
+function drawWardedRing(ctx: CanvasRenderingContext2D, e: Enemy) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const pulse = 0.4 + Math.sin(e.age * 8) * 0.15;
+  ctx.strokeStyle = `rgba(255,215,0,${pulse})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(e.x, e.y, e.radius + 5, 0, PI2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** An arrow that winds up near the trigger line, then streaks when dashing. */
@@ -603,8 +664,9 @@ function drawBoss(ctx: CanvasRenderingContext2D, e: Enemy) {
   // Telegraph: warn the lane(s) it is about to fire down.
   const charge = telegraphCharge(e.shootTimer, 0.35);
   if (charge > 0 && e.y >= BOSS.holdY - 1) {
-    const lanes = enraged ? [0, 1] : [e.lane];
-    for (const lane of lanes) drawLaneWarning(ctx, lane, y, charge);
+    for (const lane of bossFireLanes(e.shotsFired, e.lane, enraged)) {
+      drawLaneWarning(ctx, lane, y, charge);
+    }
   }
 
   ctx.save();

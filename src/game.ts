@@ -1,6 +1,7 @@
 import {
   ABILITY_DEFS,
   BOSS,
+  bossFireLanes,
   COLORS,
   DASHER,
   DODGE,
@@ -454,6 +455,8 @@ export class Game {
       shootTimer: def.kind === 'boss' ? BOSS.fireInterval : def.shootInterval ?? 0,
       hitFlash: 0,
       age: 0,
+      shotsFired: 0,
+      warded: false,
     });
   }
 
@@ -634,8 +637,9 @@ export class Game {
     boss.shootTimer -= dt * scale;
     if (boss.shootTimer <= 0) {
       boss.shootTimer += enraged ? BOSS.fireIntervalEnraged : BOSS.fireInterval;
-      // Enraged, the boss fires down both lanes at once.
-      const lanes: LaneIndex[] = enraged ? [0, 1] : [boss.lane];
+      // Aim down its lane most beats; every third is a both-lane "slam".
+      const lanes = bossFireLanes(boss.shotsFired, boss.lane, enraged) as LaneIndex[];
+      boss.shotsFired += 1;
       for (const lane of lanes) {
         this.enemyShots.push({
           id: this.nextId++,
@@ -653,10 +657,26 @@ export class Game {
   // ---------------------------------------------------------- collisions
 
   private resolveCollisions() {
+    this.computeWards();
     this.resolveProjectileHits();
     this.resolveEnemyShots();
     this.resolvePickups();
     this.resolveEnemyThreats();
+  }
+
+  /**
+   * Marks which enemies are shielded by a living WARDEN: any non-warden sharing
+   * a lane with one can be chipped but not killed until the warden falls. Kept
+   * as a per-frame flag so both collisions and rendering read the same state.
+   */
+  private computeWards() {
+    const wardedLanes = new Set<LaneIndex>();
+    for (const e of this.enemies) {
+      if (e.kind === 'warden' && e.hp > 0) wardedLanes.add(e.lane);
+    }
+    for (const e of this.enemies) {
+      e.warded = e.kind !== 'warden' && wardedLanes.has(e.lane);
+    }
   }
 
   private resolveProjectileHits() {
@@ -682,6 +702,10 @@ export class Game {
           // Each hit chips one armor plate; HP is untouchable until it breaks.
           enemy.armor -= 1;
           this.burst(projectile.x, projectile.y, '#e8edf3', 5, 160);
+        } else if (enemy.warded && enemy.hp - projectile.damage <= 0) {
+          // A warden in this lane shields it: chip to 1 HP, never lethal.
+          enemy.hp = 1;
+          this.burst(projectile.x, projectile.y, '#ffd700', 5, 160);
         } else {
           enemy.hp -= projectile.damage;
           this.burst(projectile.x, projectile.y, enemy.color, 4, 140);

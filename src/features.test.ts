@@ -85,6 +85,8 @@ function makeBoss(over: Partial<Enemy> = {}): Enemy {
     shootTimer: 0,
     hitFlash: 0,
     age: 0,
+    shotsFired: 0,
+    warded: false,
     ...over,
   };
 }
@@ -563,7 +565,59 @@ describe('new enemies', () => {
   });
 });
 
+describe('elite enemies', () => {
+  it('a warden shields lane-mates from a killing blow until it dies', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 0;
+    const warden = makeBoss({ id: 1, kind: 'warden', hp: 6, maxHp: 6, y: 300, radius: 24, lane: 0 });
+    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 0 });
+    game.enemies = [warden, grunt];
+    // A shot that would normally kill the grunt outright.
+    game.projectiles = [
+      { id: 9, lane: 0, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+    ];
+    game.update(1 / 60);
+
+    // Grunt chipped to 1 HP but not killed while the warden lives. (Compare by
+    // reference — the live spawner may add its own enemies during the frame.)
+    expect(game.enemies.includes(grunt)).toBe(true);
+    expect(grunt.hp).toBe(1);
+  });
+
+  it('does not shield enemies in the other lane', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 1;
+    const warden = makeBoss({ id: 1, kind: 'warden', hp: 6, maxHp: 6, y: 300, radius: 24, lane: 0 });
+    const grunt = makeBoss({ id: 2, kind: 'grunt', hp: 1, maxHp: 1, y: 360, radius: 20, lane: 1 });
+    game.enemies = [warden, grunt];
+    game.projectiles = [
+      { id: 9, lane: 1, x: grunt.x, y: grunt.y, radius: 6, damage: 10, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+    ];
+    game.update(1 / 60);
+    expect(game.enemies.includes(grunt)).toBe(false); // unshielded → killed
+  });
+});
+
 describe('boss fights', () => {
+  it('slams both lanes on its every-third volley', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.enemies.length = 0;
+    // A boss parked at its line, primed to fire this frame on its third volley.
+    const boss = makeBoss({ y: BOSS.holdY, hp: 60, maxHp: 60, shotsFired: 2, shootTimer: 0, weaveTimer: 5 });
+    game.enemies.push(boss);
+    game.spawner.bossPending = true;
+    game.enemyShots = [];
+
+    game.update(1 / 60);
+
+    const lanes = new Set(game.enemyShots.map((s) => s.lane));
+    expect(lanes.has(0)).toBe(true);
+    expect(lanes.has(1)).toBe(true); // both lanes covered by the slam
+  });
+
   it('a boss holds at its line instead of crossing the goal', () => {
     const game = new Game(new ScriptedInput());
     game.start();

@@ -41,10 +41,13 @@ You fire automatically. Nothing gets past the line.
 - **Power-ups are permanent** — they build up until a pink **dampener** strips
   one, or a rare violet **super dampener** wipes them all. Switch lanes or dodge
   to avoid them.
-- **Enemies** — grunts, runners, brutes, splitters, weavers, armored, and
-  shooters, each distinct by shape and motion. Shooters and bosses telegraph
-  their attacks before firing.
-- **Boss fights** — every fifth wave; bosses hold, attack in patterns, and
+- **Enemies** — grunts, runners, brutes, splitters, weavers, armored, shooters,
+  dashers, and phantoms, each distinct by shape and motion. Shooters and bosses
+  telegraph their attacks before firing.
+- **Elites** — a gold **warden** shields every enemy in its lane from a killing
+  blow until you take the warden down first.
+- **Boss fights** — every fifth wave; bosses hold and attack in patterns —
+  aiming down a lane, then slamming both at once on a telegraphed beat — and
   enrage below half health.
 
 ## Global leaderboard

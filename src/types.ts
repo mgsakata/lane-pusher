@@ -12,7 +12,8 @@ export type EnemyKind =
   | 'armored'
   | 'shooter'
   | 'dasher'
-  | 'phantom';
+  | 'phantom'
+  | 'warden';
 
 /** Static definition of an enemy archetype. Instances are scaled by wave. */
 export interface EnemyDef {
@@ -81,6 +82,14 @@ export interface Enemy {
   hitFlash: number;
   /** Seconds since spawn, used for idle wobble. */
   age: number;
+  /** Boss only: how many volleys it has fired, to vary its attack pattern. */
+  shotsFired: number;
+  /**
+   * Set each frame: true when a live WARDEN shares this enemy's lane, so it
+   * cannot be reduced below 1 HP until the warden falls. Wardens are never
+   * warded by themselves.
+   */
+  warded: boolean;
 }
 
 /** A projectile fired downward by a shooter enemy; damages the player. */

@@ -275,7 +275,35 @@ export const ENEMY_DEFS: EnemyDef[] = [
     minWave: 6,
     weight: 5,
   },
+  {
+    // Elite: while it lives, enemies sharing its lane can't be killed (only
+    // chipped to 1 HP). Take the warden down first, then mop up the lane.
+    kind: 'warden',
+    hp: 6,
+    speed: 58,
+    damage: 2,
+    score: 70,
+    radius: 24,
+    color: '#ffd700',
+    minWave: 7,
+    weight: 3,
+  },
 ];
+
+/**
+ * Which lane(s) a boss volley covers, given how many it has already fired. It
+ * aims down its own lane most of the time, but every third beat it "slams" both
+ * lanes at once (telegraphed); enraged, every volley is a both-lane slam. The
+ * renderer calls this too so the warning columns match what actually fires.
+ */
+export function bossFireLanes(
+  shotsFired: number,
+  lane: number,
+  enraged: boolean,
+): number[] {
+  if (enraged) return [0, 1];
+  return shotsFired % 3 === 2 ? [0, 1] : [lane];
+}
 
 /** Downward shots fired by shooter enemies. */
 export const ENEMY_SHOT = {
