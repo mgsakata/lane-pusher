@@ -1,9 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BOSS, PLAYER, laneCenterX } from './config';
+import { BOSS, DASHER, PHANTOM, PLAYER, laneCenterX } from './config';
 import { Emitter } from './events';
 import { Game } from './game';
 import { ScriptedInput } from './testing/sim';
-import type { Enemy, Pickup, PowerUpKind } from './types';
+import type { AbilityKind, Enemy, Pickup, PowerUpKind } from './types';
+
+function abilityPickup(ability: AbilityKind, lane: number): Pickup {
+  return {
+    id: 997,
+    content: { type: 'ability', ability },
+    lane: lane as 0 | 1,
+    x: laneCenterX(lane),
+    y: PLAYER.y,
+    radius: 18,
+    color: '#000',
+    label: ability,
+    age: 0,
+  };
+}
 
 function powerPickup(power: PowerUpKind, lane: number): Pickup {
   return {
@@ -337,6 +351,85 @@ describe('new power-ups', () => {
 
     expect(game.enemies.some((e) => e.id === enemy.id)).toBe(false);
     expect(game.player.health).toBe(3);
+  });
+});
+
+describe('active abilities', () => {
+  it('an ability pickup switches the active ability', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    expect(game.ability).toBe('pulse');
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.pickups = [abilityPickup('overdrive', 0)];
+    game.update(1 / 60);
+    expect(game.ability).toBe('overdrive');
+  });
+
+  it('OVERDRIVE boosts the fire rate for its duration', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.ability = 'overdrive';
+    game.abilityCharge = 999;
+    input.triggerAbility();
+    game.update(1 / 60);
+    expect(game.overdriveTimer).toBeGreaterThan(0);
+
+    game.player.fireCooldown = 0;
+    game.update(1 / 60);
+
+    const base = new Game(new ScriptedInput());
+    base.start();
+    base.player.fireCooldown = 0;
+    base.update(1 / 60);
+
+    expect(game.player.fireCooldown).toBeLessThan(base.player.fireCooldown);
+  });
+
+  it('BARRIER grants a long invulnerability', () => {
+    const input = new ScriptedInput();
+    const game = new Game(input);
+    game.start();
+    game.ability = 'barrier';
+    game.abilityCharge = 999;
+    input.triggerAbility();
+    game.update(1 / 60);
+    expect(game.player.invuln).toBeGreaterThan(2);
+  });
+});
+
+describe('new enemies', () => {
+  it('a phantom is untargetable while cloaked but hittable when solid', () => {
+    const shootAtAge = (age: number) => {
+      const game = new Game(new ScriptedInput());
+      game.start();
+      const ph = makeBoss({ kind: 'phantom', hp: 1, maxHp: 1, y: 400, radius: 20, lane: 0, age });
+      game.enemies = [ph];
+      game.projectiles = [
+        { id: 1, lane: 0, x: ph.x, y: ph.y, radius: 6, damage: 5, color: '#fff', speed: 900, pierce: false, hitIds: new Set() },
+      ];
+      game.update(1 / 60);
+      return game.enemies.some((e) => e.id === ph.id); // survived?
+    };
+    expect(shootAtAge(0.1)).toBe(false); // solid → destroyed
+    expect(shootAtAge(PHANTOM.solidTime + 0.1)).toBe(true); // cloaked → intangible
+  });
+
+  it('a dasher accelerates once it passes the trigger line', () => {
+    const moved = (startY: number) => {
+      const game = new Game(new ScriptedInput());
+      game.start();
+      const d = makeBoss({ kind: 'dasher', hp: 99, maxHp: 99, y: startY, speed: 60, radius: 19, lane: 1 });
+      game.enemies = [d];
+      game.player.lane = 0; // don't shoot it
+      const y0 = d.y;
+      game.update(1 / 60);
+      return game.enemies[0].y - y0;
+    };
+    const slow = moved(DASHER.triggerY - 60);
+    const fast = moved(DASHER.triggerY + 60);
+    expect(fast).toBeGreaterThan(slow * 2);
   });
 });
 

@@ -9,7 +9,9 @@ export type EnemyKind =
   | 'hazard'
   | 'weaver'
   | 'armored'
-  | 'shooter';
+  | 'shooter'
+  | 'dasher'
+  | 'phantom';
 
 /** Static definition of an enemy archetype. Instances are scaled by wave. */
 export interface EnemyDef {
@@ -85,6 +87,26 @@ export interface EnemyShot {
 
 export type WeaponKind = 'blaster' | 'scatter' | 'railgun';
 
+export type AbilityKind = 'pulse' | 'overdrive' | 'barrier';
+
+/** Static definition of an active ability, switched by ability pickups. */
+export interface AbilityDef {
+  kind: AbilityKind;
+  name: string;
+  desc: string;
+  color: string;
+  /** Kills needed to fully charge. */
+  maxCharge: number;
+  /** PULSE: damage dealt to every enemy on use. */
+  damage?: number;
+  /** PULSE/BARRIER: seconds of invulnerability granted. */
+  invuln?: number;
+  /** OVERDRIVE: seconds the fire boost lasts. */
+  duration?: number;
+  /** Relative spawn weight of the pickup that switches to this ability. */
+  switchWeight: number;
+}
+
 /** Static definition of a weapon and how it fires. */
 export interface WeaponDef {
   kind: WeaponKind;
@@ -154,10 +176,11 @@ export interface PowerUpDef {
   duration?: number;
 }
 
-/** A pickup either grants a power-up or switches the active weapon. */
+/** A pickup grants a power-up, or switches the active weapon or ability. */
 export type PickupContent =
   | { type: 'power'; power: PowerUpKind }
-  | { type: 'weapon'; weapon: WeaponKind };
+  | { type: 'weapon'; weapon: WeaponKind }
+  | { type: 'ability'; ability: AbilityKind };
 
 export interface Pickup {
   id: number;

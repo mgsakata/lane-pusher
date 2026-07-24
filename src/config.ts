@@ -1,4 +1,6 @@
 import type {
+  AbilityDef,
+  AbilityKind,
   EnemyDef,
   PowerUpDef,
   PowerUpKind,
@@ -225,6 +227,28 @@ export const ENEMY_DEFS: EnemyDef[] = [
     weight: 5,
     shootInterval: 1.6,
   },
+  {
+    kind: 'dasher',
+    hp: 3,
+    speed: 60,
+    damage: 1,
+    score: 35,
+    radius: 19,
+    color: '#ff477e',
+    minWave: 5,
+    weight: 5,
+  },
+  {
+    kind: 'phantom',
+    hp: 3,
+    speed: 90,
+    damage: 1,
+    score: 40,
+    radius: 20,
+    color: '#a78bfa',
+    minWave: 6,
+    weight: 5,
+  },
 ];
 
 /** Downward shots fired by shooter enemies. */
@@ -239,6 +263,26 @@ export const WEAVE = {
   /** Pixels per second the weaver slides toward its new lane center. */
   slideSpeed: 520,
 };
+
+/** A dasher descends slowly, then accelerates hard past `triggerY`. */
+export const DASHER = {
+  triggerY: 420,
+  factor: 3.2,
+  /** Pixels above the trigger where the wind-up telegraph shows. */
+  telegraph: 60,
+};
+
+/** A phantom cycles solid (shootable) then intangible (shots pass through). */
+export const PHANTOM = {
+  solidTime: 1.0,
+  cloakTime: 1.0,
+};
+
+/** Whether a phantom is currently cloaked (untargetable), from its age. */
+export function phantomCloaked(age: number): boolean {
+  const period = PHANTOM.solidTime + PHANTOM.cloakTime;
+  return age % period >= PHANTOM.solidTime;
+}
 
 /**
  * Boss behavior. A boss descends to `holdY`, then holds there and attacks
@@ -351,17 +395,47 @@ export const POWERUP = {
 
 // --------------------------------------------------------------- ability
 
-/** The chargeable active ability (PULSE): a defensive screen-clear + i-frames. */
-export const ABILITY = {
-  name: 'PULSE',
-  desc: 'Clear shots + brief shield. Charges from kills.',
-  /** Kills needed to fully charge. */
-  maxCharge: 22,
-  /** Damage dealt to every regular enemy on activation. */
-  damage: 5,
-  /** Seconds of invulnerability granted. */
-  invuln: 2.6,
-  color: '#ffd60a',
+export const STARTING_ABILITY: AbilityKind = 'pulse';
+
+/**
+ * Chargeable active abilities, switched by ability pickups. All charge from
+ * kills and fire with Space (or the bottom-right tap zone).
+ */
+export const ABILITY_DEFS: Record<AbilityKind, AbilityDef> = {
+  pulse: {
+    kind: 'pulse',
+    name: 'PULSE',
+    desc: 'Clear shots, damage all, brief shield',
+    color: '#ffd60a',
+    maxCharge: 22,
+    damage: 5,
+    invuln: 2.6,
+    switchWeight: 3,
+  },
+  overdrive: {
+    kind: 'overdrive',
+    name: 'OVERDRIVE',
+    desc: 'Seconds of blazing fire + damage',
+    color: '#ff6b35',
+    maxCharge: 24,
+    duration: 5,
+    switchWeight: 3,
+  },
+  barrier: {
+    kind: 'barrier',
+    name: 'BARRIER',
+    desc: 'Seconds of full invulnerability',
+    color: '#4cc9f0',
+    maxCharge: 20,
+    invuln: 4.5,
+    switchWeight: 3,
+  },
+};
+
+/** OVERDRIVE fire boost while active. */
+export const OVERDRIVE = {
+  cooldownFactor: 0.3,
+  damageBonus: 2,
 };
 
 /**

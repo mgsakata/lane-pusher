@@ -1,7 +1,8 @@
 import {
-  ABILITY,
+  ABILITY_DEFS,
   BOSS,
   COLORS,
+  DASHER,
   FIELD_MARGIN,
   GOAL_LINE_Y,
   HEIGHT,
@@ -12,6 +13,7 @@ import {
   WEAPON_DEFS,
   WIDTH,
   laneCenterX,
+  phantomCloaked,
 } from './config';
 import type { Game } from './game';
 import { leaderboard } from './leaderboard';
@@ -167,8 +169,22 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
   const y = PLAYER.y;
   const r = PLAYER.radius;
 
-  // Blink while invulnerable so the state is readable at a glance.
-  if (invuln > 0 && Math.floor(invuln * 20) % 2 === 0) return;
+  // Long invulnerability (a PULSE/BARRIER shield) shows as a bubble instead of
+  // blinking; only the brief post-hit i-frames blink.
+  const shielded = invuln > 1.2;
+  if (invuln > 0 && !shielded && Math.floor(invuln * 20) % 2 === 0) return;
+
+  // OVERDRIVE aura.
+  if (game.overdriveTimer > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.5 + Math.sin(game.elapsed * 20) * 0.5;
+    ctx.fillStyle = `rgba(255,107,53,${0.25 + pulse * 0.2})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 
   // Bank toward the lane the ship is sliding into.
   const bank = clamp((laneCenterX(lane) - x) / 60, -0.5, 0.5);
@@ -223,6 +239,21 @@ function drawPlayer(ctx: CanvasRenderingContext2D, game: Game) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+
+  // Ability-shield bubble (PULSE / BARRIER).
+  if (shielded) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 0.6 + Math.sin(game.elapsed * 10) * 0.2;
+    ctx.strokeStyle = `rgba(120,220,255,${pulse})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(120,220,255,0.08)';
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawEnemyShots(ctx: CanvasRenderingContext2D, game: Game) {
@@ -271,6 +302,12 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
     case 'shooter':
       drawShooter(ctx, enemy, body);
       break;
+    case 'dasher':
+      drawDasher(ctx, enemy, body);
+      break;
+    case 'phantom':
+      drawPhantom(ctx, enemy, body);
+      break;
     default:
       drawGrunt(ctx, enemy, body);
   }
@@ -279,6 +316,73 @@ function drawEnemy(ctx: CanvasRenderingContext2D, enemy: Enemy) {
   if (enemy.maxHp > 1) {
     drawHealthBar(ctx, enemy.x, enemy.y - enemy.radius - 12, enemy.radius, enemy);
   }
+}
+
+/** An arrow that winds up near the trigger line, then streaks when dashing. */
+function drawDasher(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  const dashing = y > DASHER.triggerY;
+  const winding = !dashing && y > DASHER.triggerY - DASHER.telegraph;
+
+  if (dashing) {
+    // Speed streak behind it.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grad = ctx.createLinearGradient(x, y - r, x, y - r * 4);
+    grad.addColorStop(0, e.color);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - r * 0.4, y - r * 4, r * 0.8, r * 3);
+    ctx.restore();
+  } else if (winding) {
+    // Wind-up glow just before it launches.
+    const pulse = 0.5 + Math.sin(e.age * 30) * 0.5;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = `rgba(255,71,126,${0.4 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.6, 0, PI2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 1.1);
+  ctx.lineTo(x + r * 0.85, y - r * 0.7);
+  ctx.lineTo(x, y - r * 0.3);
+  ctx.lineTo(x - r * 0.85, y - r * 0.7);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** A wraith that fades to intangible during its cloak windows. */
+function drawPhantom(ctx: CanvasRenderingContext2D, e: Enemy, body: string) {
+  const { x, y, radius: r } = e;
+  const cloaked = phantomCloaked(e.age);
+  ctx.globalAlpha = cloaked ? 0.22 : 1;
+
+  // Ghost body: a rounded top with a wavy hem.
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y - r * 0.1, r, Math.PI, 0);
+  const hem = 4;
+  for (let i = 0; i <= hem; i += 1) {
+    const px = x + r - (i / hem) * r * 2;
+    const py = y + r * 0.8 + (i % 2 === 0 ? 0 : r * 0.35);
+    ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Hollow eyes.
+  ctx.globalAlpha = cloaked ? 0.3 : 1;
+  ctx.fillStyle = 'rgba(10,12,18,0.85)';
+  ctx.beginPath();
+  ctx.arc(x - r * 0.34, y - r * 0.1, r * 0.16, 0, PI2);
+  ctx.arc(x + r * 0.34, y - r * 0.1, r * 0.16, 0, PI2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 /** Round menace with two dark eyes; bobs gently. */
@@ -573,14 +677,15 @@ function drawHealthBar(
 }
 
 function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
-  // Weapon pickups are round badges; buff/instant pickups are rotating squares.
-  const isWeapon = pickup.content.type === 'weapon';
+  // Weapons are round badges, abilities are hexagons, buffs/instants rotating squares.
+  const kind = pickup.content.type;
   const pulse = 1 + Math.sin(pickup.age * 8) * 0.08;
   const r = pickup.radius * pulse;
 
   ctx.save();
   ctx.translate(pickup.x, pickup.y);
-  if (!isWeapon) ctx.rotate(Math.sin(pickup.age * 2) * 0.2);
+  if (kind === 'power') ctx.rotate(Math.sin(pickup.age * 2) * 0.2);
+  if (kind === 'ability') ctx.rotate(pickup.age * 1.5);
 
   ctx.shadowColor = pickup.color;
   ctx.shadowBlur = 16;
@@ -588,8 +693,20 @@ function drawPickup(ctx: CanvasRenderingContext2D, pickup: Pickup) {
   ctx.fillStyle = 'rgba(13,17,23,0.85)';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  if (isWeapon) ctx.arc(0, 0, r, 0, Math.PI * 2);
-  else ctx.rect(-r, -r, r * 2, r * 2);
+  if (kind === 'weapon') {
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+  } else if (kind === 'ability') {
+    for (let i = 0; i < 6; i += 1) {
+      const a = (Math.PI / 3) * i;
+      const px = Math.cos(a) * r;
+      const py = Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  } else {
+    ctx.rect(-r, -r, r * 2, r * 2);
+  }
   ctx.fill();
   ctx.stroke();
   ctx.restore();
@@ -828,10 +945,11 @@ function drawBossBar(ctx: CanvasRenderingContext2D, game: Game) {
 }
 
 function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
+  const def = game.abilityDef;
   const cx = WIDTH - 34;
   const cy = HEIGHT - 28;
   const r = 20;
-  const frac = Math.min(1, game.abilityCharge / ABILITY.maxCharge);
+  const frac = Math.min(1, game.abilityCharge / def.maxCharge);
   const ready = game.abilityReady;
 
   ctx.save();
@@ -842,20 +960,21 @@ function drawAbility(ctx: CanvasRenderingContext2D, game: Game) {
 
   ctx.beginPath();
   ctx.arc(cx, cy, r - 3, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
-  ctx.strokeStyle = ABILITY.color;
+  ctx.strokeStyle = def.color;
   ctx.lineWidth = 4;
   if (ready) {
-    ctx.shadowColor = ABILITY.color;
+    ctx.shadowColor = def.color;
     ctx.shadowBlur = 14;
   }
   ctx.stroke();
   ctx.restore();
 
-  ctx.fillStyle = ready ? ABILITY.color : COLORS.textDim;
-  ctx.font = 'bold 9px system-ui, sans-serif';
+  ctx.fillStyle = ready ? def.color : COLORS.textDim;
+  // Short tag so long names (OVERDRIVE) stay inside the badge.
+  ctx.font = 'bold 8px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(ABILITY.name, cx, cy);
+  ctx.fillText(def.name.slice(0, 5), cx, cy);
 }
 
 function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
@@ -1068,13 +1187,13 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   for (const d of POWERUP_DEFS.filter((d) => d.type === 'instant')) {
     row(d.color, d.label, d.desc);
   }
-  section('ABILITY');
-  row(ABILITY.color, ABILITY.name, ABILITY.desc);
+  section('ABILITIES  (switch by pickup · SPACE to fire)');
+  for (const a of Object.values(ABILITY_DEFS)) row(a.color, a.name, a.desc);
 
   y += 10;
   centered(ctx, 'Dodge pink DAMPENERS — each strips a whole random upgrade', y, '11px', '#ff5cf0');
   y += 22;
-  centered(ctx, '← →  move   ·   SPACE = PULSE   ·   ESC / P = pause', y, '11px', COLORS.textDim);
+  centered(ctx, '← →  move   ·   SPACE = ability   ·   ESC / P = pause', y, '11px', COLORS.textDim);
   y += 30;
   centered(
     ctx,

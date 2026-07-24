@@ -1,24 +1,28 @@
 import {
-  ABILITY,
+  ABILITY_DEFS,
   BOSS,
   COLORS,
+  DASHER,
   DROP_CATEGORY,
   ENEMY_DEFS,
   ENEMY_SHOT,
   FX,
   GOAL_LINE_Y,
   LANE_COUNT,
+  OVERDRIVE,
   PLAYER,
   POWERUP,
   SCATTER_PELLET_SPACING,
   SCORE,
   SPAWN_Y,
+  STARTING_ABILITY,
   STARTING_WEAPON,
   UNIVERSAL_DROPS,
   WAVE,
   WEAPON_DEFS,
   WEAVE,
   laneCenterX,
+  phantomCloaked,
 } from './config';
 import {
   enemySpeedFactor,
@@ -38,6 +42,7 @@ import type {
   LaneIndex,
   Particle,
   Phase,
+  AbilityKind,
   Pickup,
   PickupContent,
   Projectile,
@@ -88,8 +93,12 @@ export class Game {
   /** The active weapon; switched by weapon pickups. */
   weapon: WeaponKind = STARTING_WEAPON;
 
-  /** Active-ability charge, filled by kills; ready at ABILITY.maxCharge. */
+  /** The active ability; switched by ability pickups. */
+  ability: AbilityKind = STARTING_ABILITY;
+  /** Active-ability charge, filled by kills; ready at the ability's maxCharge. */
   abilityCharge = 0;
+  /** Seconds of OVERDRIVE fire boost remaining. */
+  overdriveTimer = 0;
 
   score = 0;
   bestScore = readBestScore();
@@ -129,7 +138,9 @@ export class Game {
     this.effects.reset();
     this.spawner.reset();
     this.weapon = STARTING_WEAPON;
+    this.ability = STARTING_ABILITY;
     this.abilityCharge = 0;
+    this.overdriveTimer = 0;
     this.score = 0;
     this.kills = 0;
     this.killStreak = 0;
@@ -148,8 +159,12 @@ export class Game {
     this.flashAmount = Math.max(this.flashAmount, amount);
   }
 
+  get abilityDef() {
+    return ABILITY_DEFS[this.ability];
+  }
+
   get abilityReady(): boolean {
-    return this.abilityCharge >= ABILITY.maxCharge;
+    return this.abilityCharge >= this.abilityDef.maxCharge;
   }
 
   update(dt: number) {
@@ -188,6 +203,7 @@ export class Game {
 
     this.elapsed += dt;
     this.effects.tick(dt);
+    this.overdriveTimer = Math.max(0, this.overdriveTimer - dt);
     if (laneTarget !== null) {
       this.player.lane = clamp(laneTarget, 0, LANE_COUNT - 1) as LaneIndex;
     }
@@ -226,10 +242,12 @@ export class Game {
     const levels = this.levels;
     let cooldown = fireCooldown(this.weapon, levels);
     if (this.effects.timedActive('frenzy')) cooldown *= POWERUP.frenzyCooldownFactor;
+    if (this.overdriveTimer > 0) cooldown *= OVERDRIVE.cooldownFactor;
     this.player.fireCooldown += cooldown;
     this.events.emit('fire', { weapon: this.weapon });
 
-    const damage = projectileDamage(this.weapon, levels);
+    let damage = projectileDamage(this.weapon, levels);
+    if (this.overdriveTimer > 0) damage += OVERDRIVE.damageBonus;
     const pellets = pelletsPerLane(this.weapon, levels);
 
     // Which lanes this shot covers. The player's lane is always first; scatter
@@ -319,15 +337,36 @@ export class Game {
   // ------------------------------------------------------------- ability
 
   private chargeAbility() {
-    this.abilityCharge = Math.min(ABILITY.maxCharge, this.abilityCharge + 1);
+    this.abilityCharge = Math.min(this.abilityDef.maxCharge, this.abilityCharge + 1);
+  }
+
+  /** Fires the active ability if charged; each has a different effect. */
+  private useAbility() {
+    if (!this.abilityReady) return;
+    const def = this.abilityDef;
+    this.abilityCharge = 0;
+    this.shake = FX.shakeOnHit * 1.5;
+    this.flash(def.color, 0.4);
+    this.addFloater(this.player.x, PLAYER.y - 40, `${def.name}!`, def.color);
+    this.events.emit('ability', {});
+
+    switch (this.ability) {
+      case 'pulse':
+        this.usePulse();
+        break;
+      case 'overdrive':
+        this.overdriveTimer = def.duration ?? 0;
+        break;
+      case 'barrier':
+        this.player.invuln = Math.max(this.player.invuln, def.invuln ?? 0);
+        break;
+    }
   }
 
   /** PULSE: clear incoming shots, damage every enemy, and grant i-frames. */
-  private useAbility() {
-    if (!this.abilityReady) return;
-    this.abilityCharge = 0;
-    this.player.invuln = Math.max(this.player.invuln, ABILITY.invuln);
-    this.shake = FX.shakeOnHit * 1.5;
+  private usePulse() {
+    const def = ABILITY_DEFS.pulse;
+    this.player.invuln = Math.max(this.player.invuln, def.invuln ?? 0);
     this.enemyShots = [];
 
     const multiplier = this.comboMultiplier;
@@ -336,8 +375,8 @@ export class Game {
       // clears can never remove it (which would strand the boss-wave gate).
       if (enemy.stripsPowerups || enemy.kind === 'boss') continue;
       enemy.armor = 0;
-      enemy.hp -= ABILITY.damage;
-      this.burst(enemy.x, enemy.y, ABILITY.color, 6, 220);
+      enemy.hp -= def.damage ?? 0;
+      this.burst(enemy.x, enemy.y, def.color, 6, 220);
       if (enemy.hp <= 0) {
         this.kills += 1;
         this.killStreak += 1;
@@ -348,9 +387,6 @@ export class Game {
     this.enemies = this.enemies.filter(
       (e) => e.hp > 0 || e.stripsPowerups || e.kind === 'boss',
     );
-    this.flash(ABILITY.color, 0.4);
-    this.addFloater(this.player.x, PLAYER.y - 40, `${ABILITY.name}!`, ABILITY.color);
-    this.events.emit('ability', {});
   }
 
   private addEnemy(spawn: EnemySpawn, atY = SPAWN_Y) {
@@ -410,10 +446,19 @@ export class Game {
       content: { type: 'power', power: kind },
       weight: defFor(kind).weight,
     }));
-    const universals: Entry[] = UNIVERSAL_DROPS.map((kind) => ({
-      content: { type: 'power', power: kind },
-      weight: defFor(kind).weight,
-    }));
+    const universals: Entry[] = [
+      ...UNIVERSAL_DROPS.map((kind) => ({
+        content: { type: 'power', power: kind } as PickupContent,
+        weight: defFor(kind).weight,
+      })),
+      // Ability switches are universal drops for the abilities you lack.
+      ...Object.values(ABILITY_DEFS)
+        .filter((def) => def.kind !== this.ability)
+        .map((def) => ({
+          content: { type: 'ability', ability: def.kind } as PickupContent,
+          weight: def.switchWeight,
+        })),
+    ];
     const switches: Entry[] = Object.values(WEAPON_DEFS)
       .filter((def) => def.kind !== this.weapon)
       .map((def) => ({
@@ -450,7 +495,12 @@ export class Game {
         continue;
       }
 
-      enemy.y += enemy.speed * enemyScale * dt;
+      // A dasher accelerates hard once it drops past the trigger line.
+      const speed =
+        enemy.kind === 'dasher' && enemy.y > DASHER.triggerY
+          ? enemy.speed * DASHER.factor
+          : enemy.speed;
+      enemy.y += speed * enemyScale * dt;
       if (enemy.kind === 'weaver') this.updateWeaver(enemy, dt, enemyScale);
       if (enemy.kind === 'shooter') this.updateShooter(enemy, dt, enemyScale);
     }
@@ -579,6 +629,8 @@ export class Game {
         if (enemy.hp <= 0) continue;
         // Hazards cannot be shot; projectiles pass straight through them.
         if (enemy.stripsPowerups) continue;
+        // A phantom is intangible during its cloak windows.
+        if (enemy.kind === 'phantom' && phantomCloaked(enemy.age)) continue;
         if (enemy.lane !== projectile.lane) continue;
         if (projectile.hitIds.has(enemy.id)) continue;
         if (Math.abs(enemy.y - projectile.y) > enemy.radius + projectile.radius) {
@@ -730,6 +782,11 @@ export class Game {
     if (content.type === 'weapon') {
       this.weapon = content.weapon;
       this.events.emit('weaponSwitch', { weapon: content.weapon });
+      return;
+    }
+    if (content.type === 'ability') {
+      this.ability = content.ability;
+      this.abilityCharge = Math.min(this.abilityCharge, this.abilityDef.maxCharge);
       return;
     }
 
@@ -918,6 +975,10 @@ export class Game {
 function pickupDisplay(content: PickupContent): { color: string; label: string } {
   if (content.type === 'weapon') {
     const def = WEAPON_DEFS[content.weapon];
+    return { color: def.color, label: def.name };
+  }
+  if (content.type === 'ability') {
+    const def = ABILITY_DEFS[content.ability];
     return { color: def.color, label: def.name };
   }
   const def = defFor(content.power);
