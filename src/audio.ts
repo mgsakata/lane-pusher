@@ -74,6 +74,11 @@ export class SoundEngine {
   private musicStep = 0;
   private nextNoteTime = 0;
 
+  /** Whether the audio clock is actually running (iOS unlocks lazily). */
+  isRunning(): boolean {
+    return this.ctx?.state === 'running';
+  }
+
   /** Must be called from a user gesture to unlock audio in the browser. */
   resume() {
     if (!this.ctx) {
@@ -91,7 +96,18 @@ export class SoundEngine {
       this.musicGain.connect(this.master);
       this.noiseBuffer = this.makeNoise();
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    if (this.ctx.state !== 'running') void this.ctx.resume();
+
+    // iOS Safari needs a real (silent) buffer played inside the gesture before
+    // it will actually route audio to the output.
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+      src.connect(this.ctx.destination);
+      src.start(0);
+    } catch {
+      // ignore — best-effort unlock
+    }
   }
 
   toggleMute() {

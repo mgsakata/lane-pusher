@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { BOSS } from './config';
+import { BOSS, PLAYER, laneCenterX } from './config';
 import { Emitter } from './events';
 import { Game } from './game';
 import { ScriptedInput } from './testing/sim';
-import type { Enemy } from './types';
+import type { Enemy, Pickup } from './types';
+
+function bombPickup(lane: number): Pickup {
+  return {
+    id: 999,
+    content: { type: 'power', power: 'bomb' },
+    lane: lane as 0 | 1,
+    x: laneCenterX(lane),
+    y: PLAYER.y,
+    radius: 18,
+    color: '#ef476f',
+    label: 'BOMB',
+    age: 0,
+  };
+}
 
 function makeBoss(over: Partial<Enemy> = {}): Enemy {
   return {
@@ -172,6 +186,38 @@ describe('boss fights', () => {
 
     game.update(1 / 60);
     expect(game.spawner.phase).toBe('active');
+  });
+
+  it('a BOMB cannot vaporize the boss or strand the wave gate', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.enemies = [
+      makeBoss({ y: BOSS.holdY }),
+      makeBoss({ id: 2, kind: 'grunt', y: 250, hp: 2, maxHp: 2, radius: 20 }),
+    ];
+    game.spawner.bossPending = true;
+    game.pickups = [bombPickup(0)]; // collected at the player this frame
+
+    game.update(1 / 60);
+
+    expect(game.enemies.filter((e) => e.kind === 'boss').length).toBe(1);
+    expect(game.enemies.some((e) => e.kind === 'grunt')).toBe(false);
+    expect(game.spawner.bossPending).toBe(true); // boss still alive, gate holds
+  });
+
+  it('the gate lifts if the boss ever leaves the field (failsafe)', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.enemies = [makeBoss({ y: BOSS.holdY })];
+    game.spawner.bossPending = true;
+
+    // Boss removed by some path that skipped the normal kill.
+    game.enemies = [];
+    game.update(1 / 60);
+
+    expect(game.spawner.bossPending).toBe(false);
   });
 
   it('destroying the boss clears the gate and heals the player', () => {

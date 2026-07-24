@@ -39,14 +39,23 @@ async function handleGameOver(score: number, wave: number) {
   if (name) await leaderboard.submit(name, score, wave);
 }
 
-// Browsers require a user gesture before audio can start.
+// Browsers require a user gesture before audio can start. iOS Safari in
+// particular unlocks lazily, so retry on every gesture until it's running.
 const unlockAudio = () => {
   sound.resume();
-  window.removeEventListener('pointerdown', unlockAudio);
-  window.removeEventListener('keydown', unlockAudio);
+  if (sound.isRunning()) {
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('touchend', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  }
 };
 window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('touchend', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
+// iOS suspends the audio context when the tab is backgrounded; resume on return.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) sound.resume();
+});
 
 /**
  * The canvas keeps a fixed logical size (WIDTH x HEIGHT) and is letterboxed

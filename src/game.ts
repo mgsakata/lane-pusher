@@ -299,6 +299,12 @@ export class Game {
         boss: this.spawner.isBossWave,
       });
     }
+
+    // Failsafe: the boss-wave gate must never outlive the boss. The boss is on
+    // the field the moment its wave starts, so if none remains, lift the gate.
+    if (this.spawner.bossPending && !this.enemies.some((e) => e.kind === 'boss')) {
+      this.spawner.bossPending = false;
+    }
   }
 
   // ------------------------------------------------------------- ability
@@ -317,7 +323,9 @@ export class Game {
 
     const multiplier = this.comboMultiplier;
     for (const enemy of this.enemies) {
-      if (enemy.stripsPowerups) continue;
+      // Hazards and bosses are immune — a boss must be shot down, so instant
+      // clears can never remove it (which would strand the boss-wave gate).
+      if (enemy.stripsPowerups || enemy.kind === 'boss') continue;
       enemy.armor = 0;
       enemy.hp -= ABILITY.damage;
       this.burst(enemy.x, enemy.y, ABILITY.color, 6, 220);
@@ -328,7 +336,9 @@ export class Game {
         this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
       }
     }
-    this.enemies = this.enemies.filter((e) => e.hp > 0 || e.stripsPowerups);
+    this.enemies = this.enemies.filter(
+      (e) => e.hp > 0 || e.stripsPowerups || e.kind === 'boss',
+    );
     this.flash(ABILITY.color, 0.4);
     this.addFloater(this.player.x, PLAYER.y - 40, `${ABILITY.name}!`, ABILITY.color);
     this.events.emit('ability', {});
@@ -708,15 +718,18 @@ export class Game {
     const multiplier = this.comboMultiplier;
 
     for (const enemy of this.enemies) {
-      if (enemy.stripsPowerups) continue;
+      // Hazards and bosses are immune (a boss must be shot down).
+      if (enemy.stripsPowerups || enemy.kind === 'boss') continue;
       this.kills += 1;
       this.killStreak += 1;
       this.score += enemy.score * multiplier;
       this.burst(enemy.x, enemy.y, enemy.color, FX.particlesPerKill, 300);
     }
 
-    // Hazards survive; every regular enemy and all incoming shots are cleared.
-    this.enemies = this.enemies.filter((e) => e.stripsPowerups);
+    // Hazards and the boss survive; every regular enemy and incoming shot clears.
+    this.enemies = this.enemies.filter(
+      (e) => e.stripsPowerups || e.kind === 'boss',
+    );
     this.enemyShots = [];
     this.flash('#ffffff', 0.6);
     this.events.emit('bomb', {});
