@@ -4,14 +4,27 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n game,api -c cyan,magenta \"vite\" \"npm:server\"",
+    "vite": "vite",
+    "server": "tsx watch server/index.ts",
     "build": "tsc && vite build",
+    "typecheck:server": "tsc -p server/tsconfig.json",
+    "start": "npm run build && tsx server/index.ts",
     "preview": "vite preview",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.1",
+    "concurrently": "^10.0.3",
+    "tsx": "^4.23.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.1",
+    "express": "^5.2.1"
   }
 }

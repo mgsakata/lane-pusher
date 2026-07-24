@@ -30,3 +30,83 @@ body {
   -webkit-tap-highlight-color: transparent;
   box-shadow: 0 0 60px rgba(0, 229, 255, 0.08);
 }
+
+.name-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 9, 14, 0.72);
+}
+
+.name-card {
+  width: min(88vw, 320px);
+  padding: 22px 22px 18px;
+  border-radius: 14px;
+  background: #131a26;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+  text-align: center;
+  color: #e6edf3;
+}
+
+.name-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #00e5ff;
+}
+
+.name-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #7d8590;
+}
+
+.name-input {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #e6edf3;
+  background: #0b1017;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  outline: none;
+}
+
+.name-input:focus {
+  border-color: #00e5ff;
+}
+
+.name-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+
+.name-actions button {
+  flex: 1;
+  padding: 11px 0;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+}
+
+.name-skip {
+  background: rgba(255, 255, 255, 0.08);
+  color: #adb6c0;
+}
+
+.name-save {
+  background: #00e5ff;
+  color: #06121a;
+}

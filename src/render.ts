@@ -14,6 +14,7 @@ import {
   laneCenterX,
 } from './config';
 import type { Game } from './game';
+import { leaderboard } from './leaderboard';
 import type { Enemy, Pickup } from './types';
 import { clamp } from './util';
 
@@ -972,6 +973,7 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game, time: number) {
   if (game.bestScore > 0) {
     centered(ctx, `BEST ${game.bestScore}`, HEIGHT / 2 + 136, '14px', COLORS.textDim);
   }
+  drawLeaderboard(ctx, HEIGHT / 2 + 172, 5);
 }
 
 function drawGameOver(ctx: CanvasRenderingContext2D, game: Game) {
@@ -994,6 +996,7 @@ function drawGameOver(ctx: CanvasRenderingContext2D, game: Game) {
     isBest ? COLORS.player : COLORS.textDim,
   );
   centered(ctx, 'PRESS SPACE OR TAP TO RETRY', HEIGHT / 2 + 90, 'bold 16px', COLORS.text);
+  drawLeaderboard(ctx, HEIGHT / 2 + 132, 5);
 }
 
 function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
@@ -1055,6 +1058,41 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
     'bold 14px',
     COLORS.text,
   );
+}
+
+/** Compact global leaderboard for the title/game-over screens. */
+function drawLeaderboard(ctx: CanvasRenderingContext2D, topY: number, maxRows: number) {
+  if (leaderboard.status === 'off') return;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = COLORS.textDim;
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.fillText('— TOP SCORES —', WIDTH / 2, topY);
+
+  const rows = leaderboard.scores.slice(0, maxRows);
+  if (rows.length === 0) {
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(
+      leaderboard.status === 'ready' ? 'Be the first!' : '…',
+      WIDTH / 2,
+      topY + 22,
+    );
+    return;
+  }
+
+  const left = WIDTH / 2 - 108;
+  const right = WIDTH / 2 + 108;
+  let y = topY + 24;
+  rows.forEach((r, i) => {
+    ctx.fillStyle = i === 0 ? COLORS.player : COLORS.text;
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${i + 1}. ${r.name}`, left, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(String(r.score), right, y);
+    y += 20;
+  });
 }
 
 function dimScreen(ctx: CanvasRenderingContext2D) {

@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Leaderboard database (runtime)
+leaderboard.db
+leaderboard.db-wal
+leaderboard.db-shm

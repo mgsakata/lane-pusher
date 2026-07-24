@@ -3,6 +3,8 @@ import { SoundEngine } from './audio';
 import { HEIGHT, WIDTH } from './config';
 import { Game } from './game';
 import { Input } from './input';
+import { leaderboard } from './leaderboard';
+import { promptName } from './nameEntry';
 import { render } from './render';
 
 const canvasEl = document.querySelector<HTMLCanvasElement>('#game');
@@ -18,6 +20,24 @@ const game = new Game(input);
 
 const sound = new SoundEngine();
 sound.attach(game);
+
+// Leaderboard: fetch the board, get a session per run, and offer to submit a
+// qualifying score. All decoupled through the game's event bus.
+void leaderboard.refresh();
+game.events.on('gameStart', () => {
+  void leaderboard.startSession();
+});
+game.events.on('gameOver', ({ score, wave }) => {
+  void handleGameOver(score, wave);
+});
+
+async function handleGameOver(score: number, wave: number) {
+  await leaderboard.refresh();
+  if (!leaderboard.qualifies(score)) return;
+  const rank = leaderboard.scores.filter((s) => s.score > score).length + 1;
+  const name = await promptName(rank);
+  if (name) await leaderboard.submit(name, score, wave);
+}
 
 // Browsers require a user gesture before audio can start.
 const unlockAudio = () => {

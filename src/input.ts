@@ -40,6 +40,16 @@ export class Input implements InputSource {
   private bind() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      // Ignore game shortcuts while the player is typing (e.g. a name entry).
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          active.isContentEditable)
+      ) {
+        return;
+      }
       switch (e.key) {
         case 'ArrowLeft':
         case 'a':

@@ -14,8 +14,12 @@ npm install
 npm run dev
 ```
 
-Then open the printed local URL (default <http://localhost:5173>) and tap once
-to start. (Browsers require a gesture before audio can begin.)
+`npm run dev` runs both the game (Vite, <http://localhost:5173>) and the
+leaderboard API (<http://localhost:8787>, proxied at `/api`). Open the game URL
+and tap once to start. (Browsers require a gesture before audio can begin.)
+
+The game runs fully without the API — the leaderboard just hides itself if the
+server is unreachable.
 
 ## Controls
 
@@ -40,6 +44,24 @@ You fire automatically. Nothing gets past the line.
 - **Boss fights** — every fifth wave; bosses hold, attack in patterns, and
   enrage below half health.
 
+## Global leaderboard
+
+A small **Express + SQLite** service (in `server/`) backs an online scoreboard.
+
+- Each run requests a single-use, server-issued session key.
+- The final score + name is **AES-GCM encrypted** with that key (browser Web
+  Crypto ↔ Node crypto) and never sent as plain JSON; the server checks the
+  session is valid, unused, and time-plausible, and rate-limits submissions.
+- This deters casual tampering, not a determined cheater — the client holds the
+  key. A stronger option is server-side replay validation using the game's
+  deterministic simulation (submit seed + inputs, replay to confirm the score).
+
+In production, one Node server serves both the built game and the API:
+
+```bash
+npm start        # builds the game, then serves game + API on :8787
+```
+
 ## Tech
 
 - Vanilla **TypeScript** + **HTML5 Canvas**, bundled with **Vite** — no game
@@ -50,6 +72,7 @@ You fire automatically. Nothing gets past the line.
   including a headless full-game simulation.
 
 ```bash
-npm test         # unit + balance + simulation tests
-npm run build    # production build
+npm test               # unit + balance + simulation tests
+npm run build          # production build of the game
+npm run typecheck:server
 ```
