@@ -439,7 +439,7 @@ export const POWERUP = {
    * to the interval on wave 1, easing linearly to 0 by `earlyRampWaves`.
    */
   earlyIntervalBonus: 5,
-  earlyRampWaves: 5,
+  earlyRampWaves: 10,
   radius: 18,
   /** Pickups drift down slower than enemies so they are catchable. */
   speed: 90,
