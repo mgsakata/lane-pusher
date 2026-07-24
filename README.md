@@ -24,6 +24,8 @@ server is unreachable.
 ## Controls
 
 - **Move lanes** — tap a lane, or `←` `→` / `A` `D`
+- **Dodge** — double-tap the lane you're already in: flick briefly intangible
+  and slip through enemies, shots, and dampeners, then a short cooldown
 - **PULSE ability** — `Space` (kill-charged screen-clear + brief shield)
 - **Pause / guide** — `Esc` or `P` (also the `?` button, top-right)
 - **Help** — `H`, or the `?` button
@@ -37,7 +39,8 @@ You fire automatically. Nothing gets past the line.
   Railgun (slow, piercing, heavy). Switch by picking one up; each is upgraded
   only by its own buffs.
 - **Power-ups are permanent** — they build up until a pink **dampener** strips
-  them. Dodge dampeners by switching lanes.
+  one, or a rare violet **super dampener** wipes them all. Switch lanes or dodge
+  to avoid them.
 - **Enemies** — grunts, runners, brutes, splitters, weavers, armored, and
   shooters, each distinct by shape and motion. Shooters and bosses telegraph
   their attacks before firing.
