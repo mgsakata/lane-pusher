@@ -1137,6 +1137,10 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game, time: number) {
   ctx.fillText('LANE PUSHER', 0, 0);
   ctx.restore();
 
+  if (game.dayId > 0) {
+    centered(ctx, `DAILY RUN · ${formatDay(game.dayId)}`, HEIGHT / 2 - 52, 'bold 12px', COLORS.player);
+  }
+
   centered(
     ctx,
     'Tap a lane, or use  ←  →  /  A  D',
@@ -1265,39 +1269,61 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   );
 }
 
-/** Compact global leaderboard for the title/game-over screens. */
+/**
+ * Two compact global boards side by side for the title/game-over screens:
+ * TODAY's daily "run of the day" on the left, the ALL-TIME board on the right.
+ */
 function drawLeaderboard(ctx: CanvasRenderingContext2D, topY: number, maxRows: number) {
   if (leaderboard.status === 'off') return;
+  const loading = leaderboard.status !== 'ready';
+  drawBoardColumn(ctx, 'TODAY', leaderboard.daily, 40, WIDTH / 2 - 8, topY, maxRows, loading);
+  drawBoardColumn(ctx, 'ALL-TIME', leaderboard.scores, WIDTH / 2 + 8, WIDTH - 40, topY, maxRows, loading);
+}
 
-  ctx.textAlign = 'center';
+function drawBoardColumn(
+  ctx: CanvasRenderingContext2D,
+  title: string,
+  rows: { name: string; score: number }[],
+  xLeft: number,
+  xRight: number,
+  topY: number,
+  maxRows: number,
+  loading: boolean,
+) {
+  const mid = (xLeft + xRight) / 2;
   ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
   ctx.fillStyle = COLORS.textDim;
-  ctx.font = 'bold 12px system-ui, sans-serif';
-  ctx.fillText('— TOP SCORES —', WIDTH / 2, topY);
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.fillText(`— ${title} —`, mid, topY);
 
-  const rows = leaderboard.scores.slice(0, maxRows);
-  if (rows.length === 0) {
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(
-      leaderboard.status === 'ready' ? 'Be the first!' : '…',
-      WIDTH / 2,
-      topY + 22,
-    );
+  const shown = rows.slice(0, maxRows);
+  if (shown.length === 0) {
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(loading ? '…' : 'Be the first!', mid, topY + 20);
     return;
   }
 
-  const left = WIDTH / 2 - 108;
-  const right = WIDTH / 2 + 108;
-  let y = topY + 24;
-  rows.forEach((r, i) => {
+  let y = topY + 22;
+  shown.forEach((r, i) => {
     ctx.fillStyle = i === 0 ? COLORS.player : COLORS.text;
-    ctx.font = '13px system-ui, sans-serif';
+    ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${i + 1}. ${r.name}`, left, y);
+    // Trim long names so the rank/name never collide with the score.
+    const name = r.name.length > 8 ? `${r.name.slice(0, 8)}…` : r.name;
+    ctx.fillText(`${i + 1}.${name}`, xLeft, y);
     ctx.textAlign = 'right';
-    ctx.fillText(String(r.score), right, y);
-    y += 20;
+    ctx.fillText(String(r.score), xRight, y);
+    y += 18;
   });
+}
+
+/** YYYYMMDD → "YYYY-MM-DD" for the daily-run label. */
+function formatDay(dayId: number): string {
+  const y = Math.floor(dayId / 10000);
+  const m = Math.floor((dayId % 10000) / 100);
+  const d = dayId % 100;
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 function dimScreen(ctx: CanvasRenderingContext2D) {

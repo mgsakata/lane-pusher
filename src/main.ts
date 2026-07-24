@@ -6,6 +6,7 @@ import { Input } from './input';
 import { leaderboard } from './leaderboard';
 import { promptName } from './nameEntry';
 import { render } from './render';
+import { dailySeed, utcDayId } from './util';
 
 const canvasEl = document.querySelector<HTMLCanvasElement>('#game');
 if (!canvasEl) throw new Error('Missing #game canvas');
@@ -17,6 +18,13 @@ const ctx: CanvasRenderingContext2D = context;
 
 const input = new Input(canvas);
 const game = new Game(input);
+
+// The "run of the day": seed every run from today's UTC date so all players
+// face the same enemy sequence, and tag scores with the day for its board.
+const dayId = utcDayId();
+game.dayId = dayId;
+game.dailySeed = dailySeed(dayId);
+leaderboard.setDay(dayId);
 
 const sound = new SoundEngine();
 sound.attach(game);
@@ -34,8 +42,10 @@ game.events.on('gameOver', ({ score, wave }) => {
 async function handleGameOver(score: number, wave: number) {
   await leaderboard.refresh();
   if (!leaderboard.qualifies(score)) return;
-  const rank = leaderboard.scores.filter((s) => s.score > score).length + 1;
-  const name = await promptName(rank);
+  // Show whichever board rank is more flattering — usually the one they made.
+  const allRank = leaderboard.scores.filter((s) => s.score > score).length + 1;
+  const dayRank = leaderboard.daily.filter((s) => s.score > score).length + 1;
+  const name = await promptName(Math.min(allRank, dayRank));
   if (name) await leaderboard.submit(name, score, wave);
 }
 

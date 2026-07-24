@@ -2,6 +2,7 @@ import { WEAPON_DEFS } from '../config';
 import { Game } from '../game';
 import type { InputSource } from '../input';
 import type { WeaponKind } from '../types';
+import { mulberry32 } from '../util';
 
 /**
  * Headless simulation harness: drives the real `Game` loop with a scripted
@@ -9,16 +10,8 @@ import type { WeaponKind } from '../types';
  * game actually plays out (not just its balance formulas).
  */
 
-/** Small seeded PRNG (mulberry32) so runs are deterministic and repeatable. */
-export function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+// mulberry32 lives in util now; re-export so existing test imports still resolve.
+export { mulberry32 };
 
 /** An InputSource the harness (and tests) set programmatically each frame. */
 export class ScriptedInput implements InputSource {

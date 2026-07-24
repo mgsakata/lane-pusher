@@ -3,6 +3,7 @@ export interface ScoreRow {
   score: number;
   wave: number;
   created: number;
+  day?: number;
 }
 
 interface Session {
@@ -31,20 +32,30 @@ function fromBase64(str: string): Uint8Array {
  * server is unreachable the game plays on normally with no leaderboard.
  */
 class Leaderboard {
+  /** All-time top scores. */
   scores: ScoreRow[] = [];
+  /** Today's top scores (the daily "run of the day" board). */
+  daily: ScoreRow[] = [];
   /** 'off' means the server is unavailable — the game just hides the board. */
   status: 'idle' | 'loading' | 'ready' | 'off' = 'idle';
 
   private session: Session | null = null;
+  private dayId = 0;
   private readonly boardSize = 10;
+
+  /** Tells the board which UTC day is "today", so it can label the daily list. */
+  setDay(dayId: number): void {
+    this.dayId = dayId;
+  }
 
   async refresh(): Promise<void> {
     if (this.status === 'idle') this.status = 'loading';
     try {
-      const res = await fetch(`${API}/scores?limit=${this.boardSize}`);
+      const res = await fetch(`${API}/scores?limit=${this.boardSize}&day=${this.dayId}`);
       if (!res.ok) throw new Error('bad status');
-      const data = (await res.json()) as { scores: ScoreRow[] };
+      const data = (await res.json()) as { scores: ScoreRow[]; daily?: ScoreRow[] };
       this.scores = data.scores ?? [];
+      this.daily = data.daily ?? [];
       this.status = 'ready';
     } catch {
       this.status = 'off';
@@ -67,11 +78,15 @@ class Leaderboard {
     }
   }
 
-  /** Whether `score` would land on the visible board. */
+  /** Whether `score` would land on either the all-time or the daily board. */
   qualifies(score: number): boolean {
     if (this.status === 'off' || score <= 0) return false;
-    if (this.scores.length < this.boardSize) return true;
-    return score > this.scores[this.scores.length - 1].score;
+    return this.qualifiesFor(score, this.scores) || this.qualifiesFor(score, this.daily);
+  }
+
+  private qualifiesFor(score: number, board: ScoreRow[]): boolean {
+    if (board.length < this.boardSize) return true;
+    return score > board[board.length - 1].score;
   }
 
   async submit(name: string, score: number, wave: number): Promise<boolean> {

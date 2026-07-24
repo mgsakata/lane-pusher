@@ -23,6 +23,12 @@ const MAX_POINTS_PER_SECOND = 6000;
 const MAX_NAME_LENGTH = 12;
 const BOARD_LIMIT = 50;
 
+/** UTC calendar day as YYYYMMDD — matches the client's utcDayId so boards agree. */
+function utcDayId(ts = Date.now()): number {
+  const d = new Date(ts);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+
 const app = express();
 app.use(express.json({ limit: '8kb' }));
 
@@ -80,15 +86,23 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-/** Top scores, highest first. */
+/** Top scores: the all-time board plus today's daily board, highest first. */
 app.get('/api/scores', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), BOARD_LIMIT);
+  const day = Number(req.query.day) || utcDayId();
+
   const scores = db
     .prepare(
-      'SELECT name, score, wave, created FROM scores ORDER BY score DESC, created ASC LIMIT ?',
+      'SELECT name, score, wave, created, day FROM scores ORDER BY score DESC, created ASC LIMIT ?',
     )
     .all(limit) as ScoreRow[];
-  res.json({ scores });
+  const daily = db
+    .prepare(
+      'SELECT name, score, wave, created, day FROM scores WHERE day = ? ORDER BY score DESC, created ASC LIMIT ?',
+    )
+    .all(day, limit) as ScoreRow[];
+
+  res.json({ scores, daily, day });
 });
 
 /** Submit an encrypted score bound to a session. */
@@ -138,16 +152,22 @@ app.post('/api/scores', (req, res) => {
     return res.status(400).json({ error: 'implausible score' });
   }
 
-  // Consume the session (single use), then record the score.
+  // Consume the session (single use), then record the score, tagged with the
+  // UTC day it landed on so it counts toward that day's board.
+  const now = Date.now();
+  const day = utcDayId(now);
   db.prepare('UPDATE sessions SET used = 1 WHERE id = ?').run(sessionId);
   db.prepare(
-    'INSERT INTO scores (name, score, wave, created) VALUES (?, ?, ?, ?)',
-  ).run(name, score, wave, Date.now());
+    'INSERT INTO scores (name, score, wave, created, day) VALUES (?, ?, ?, ?, ?)',
+  ).run(name, score, wave, now, day);
 
   const ranked = db
     .prepare('SELECT COUNT(*) AS n FROM scores WHERE score > ?')
     .get(score) as { n: number };
-  res.json({ ok: true, rank: ranked.n + 1 });
+  const rankedDay = db
+    .prepare('SELECT COUNT(*) AS n FROM scores WHERE day = ? AND score > ?')
+    .get(day, score) as { n: number };
+  res.json({ ok: true, rank: ranked.n + 1, dailyRank: rankedDay.n + 1 });
 });
 
 // ------------------------------------------------ static game (production)

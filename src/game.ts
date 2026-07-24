@@ -95,6 +95,15 @@ export class Game {
   /** Gameplay event bus for sound and visual feedback to subscribe to. */
   events = new Emitter();
 
+  /**
+   * The daily "run of the day": when set (by main.ts from the UTC date), the
+   * spawner is seeded with it so every player faces the same enemy sequence.
+   * Left null in tests/headless sims, which keep nondeterministic spawns.
+   */
+  dailySeed: number | null = null;
+  /** The UTC day id (YYYYMMDD) this run belongs to, for the daily board. */
+  dayId = 0;
+
   /** The active weapon; switched by weapon pickups. */
   weapon: WeaponKind = STARTING_WEAPON;
 
@@ -142,6 +151,7 @@ export class Game {
     this.floaters = [];
     this.effects.reset();
     this.spawner.reset();
+    this.spawner.seed(this.dailySeed);
     this.weapon = STARTING_WEAPON;
     this.ability = STARTING_ABILITY;
     this.abilityCharge = 0;

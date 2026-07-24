@@ -5,7 +5,7 @@ import {
 } from './balance';
 import { ENEMY_DEFS, LANE_COUNT, POWERUP, WAVE } from './config';
 import type { EnemyDef, LaneIndex } from './types';
-import { pickWeighted, randInt, randRange } from './util';
+import { mulberry32, pickWeighted, randInt, randRange, type Rng } from './util';
 
 export interface EnemySpawn {
   def: EnemyDef;
@@ -43,6 +43,15 @@ export class Spawner {
   private enemyTimer = 0;
   private pickupTimer = POWERUP.interval * 0.6;
 
+  /**
+   * The source of spawn randomness. Seeded per day (see `seed`) so every player
+   * faces the same enemy sequence in a daily run; falls back to Math.random for
+   * an unseeded run. Only spawn decisions draw from it — player-driven and
+   * cosmetic randomness stay on Math.random — so the shared sequence never
+   * desyncs on how well someone plays.
+   */
+  private rng: Rng = Math.random;
+
   reset() {
     this.wave = 1;
     this.phase = 'active';
@@ -50,6 +59,11 @@ export class Spawner {
     this.bossPending = false;
     this.enemyTimer = 0;
     this.pickupTimer = POWERUP.interval * 0.6;
+  }
+
+  /** Seeds the spawn sequence; pass null to use nondeterministic Math.random. */
+  seed(seed: number | null) {
+    this.rng = seed === null ? Math.random : mulberry32(seed);
   }
 
   /** Fraction of the current phase completed, 0..1. */
@@ -85,7 +99,7 @@ export class Spawner {
         this.bossPending = true;
         out.enemies.push({
           def: boss,
-          lane: randInt(0, LANE_COUNT) as LaneIndex,
+          lane: randInt(0, LANE_COUNT, this.rng) as LaneIndex,
           hpMultiplier: this.hpMultiplier,
           speedMultiplier: this.speedMultiplier,
         });
@@ -113,7 +127,7 @@ export class Spawner {
         if (def) {
           out.enemies.push({
             def,
-            lane: randInt(0, LANE_COUNT) as LaneIndex,
+            lane: randInt(0, LANE_COUNT, this.rng) as LaneIndex,
             hpMultiplier: this.hpMultiplier,
             speedMultiplier: this.speedMultiplier,
           });
@@ -137,8 +151,9 @@ export class Spawner {
     this.pickupTimer -= dt;
     if (this.pickupTimer <= 0) {
       this.pickupTimer =
-        POWERUP.interval + randRange(-POWERUP.intervalJitter, POWERUP.intervalJitter);
-      out.pickupLanes.push(randInt(0, LANE_COUNT) as LaneIndex);
+        POWERUP.interval +
+        randRange(-POWERUP.intervalJitter, POWERUP.intervalJitter, this.rng);
+      out.pickupLanes.push(randInt(0, LANE_COUNT, this.rng) as LaneIndex);
     }
 
     return out;
@@ -146,8 +161,10 @@ export class Spawner {
 
   /** Picks an archetype unlocked by the current wave, weighted by rarity. */
   private rollEnemy(): EnemyDef | undefined {
-    return pickWeighted(ENEMY_DEFS, (def) =>
-      this.wave >= def.minWave ? def.weight : 0,
+    return pickWeighted(
+      ENEMY_DEFS,
+      (def) => (this.wave >= def.minWave ? def.weight : 0),
+      this.rng,
     );
   }
 }
