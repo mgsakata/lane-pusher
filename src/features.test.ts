@@ -294,6 +294,33 @@ describe('new power-ups', () => {
     expect(game.effects.level('rapid')).toBe(0); // the whole RAPID stack, not one level
   });
 
+  it('a dampener never strips buffs of a weapon you are not holding', () => {
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.weapon = 'blaster';
+    // Scatter/railgun buffs are held but inactive; blaster + universal are active.
+    game.effects.apply('spread');
+    game.effects.apply('spread'); // scatter, level 2
+    game.effects.apply('overload'); // railgun
+    game.effects.apply('rapid'); // blaster
+    game.effects.apply('slow'); // universal
+
+    // Take a dampener hit repeatedly — enough to strip every strippable buff.
+    for (let i = 0; i < 12; i += 1) {
+      game.player.lane = 0;
+      game.player.x = laneCenterX(0);
+      game.player.shieldCharges = 0;
+      game.enemies = [
+        makeBoss({ kind: 'hazard', stripsPowerups: true, lane: 0, y: PLAYER.y, radius: 22 }),
+      ];
+      game.update(1 / 60);
+    }
+
+    // Inactive weapons' buffs are untouched no matter how many hits land.
+    expect(game.effects.level('spread')).toBe(2);
+    expect(game.effects.level('overload')).toBe(1);
+  });
+
   it('VAMP heals on a kill when the roll succeeds', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0); // always under the heal chance
     const game = new Game(new ScriptedInput());
