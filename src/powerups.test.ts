@@ -31,7 +31,7 @@ describe('Effects leveling', () => {
     expect(e.apply('bomb').bomb).toBe(true);
   });
 
-  it('a hazard strip clears every buff level and reports the count', () => {
+  it('stripAll clears every buff level and reports the count', () => {
     const e = new Effects();
     e.apply('spread');
     e.apply('punch');
@@ -42,6 +42,25 @@ describe('Effects leveling', () => {
     expect(lost).toBe(2);
     expect(e.level('punch')).toBe(0);
     expect(e.level('spread')).toBe(0);
+  });
+
+  it('stripOne removes one level of a held candidate, leaving the rest', () => {
+    const e = new Effects();
+    e.apply('rapid');
+    e.apply('rapid'); // level 2
+    e.apply('punch'); // not a candidate below
+
+    const stripped = e.stripOne(['rapid']);
+    expect(stripped).toBe('rapid');
+    expect(e.level('rapid')).toBe(1); // one level gone
+    expect(e.level('punch')).toBe(1); // untouched
+  });
+
+  it('stripOne returns null when no candidate is held', () => {
+    const e = new Effects();
+    e.apply('rapid');
+    expect(e.stripOne(['twin', 'slow'])).toBeNull();
+    expect(e.level('rapid')).toBe(1);
   });
 
   it('list reports level, and levelMap feeds the balance model', () => {

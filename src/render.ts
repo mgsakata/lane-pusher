@@ -883,7 +883,18 @@ function drawHealth(ctx: CanvasRenderingContext2D, game: Game) {
 }
 
 function drawEffectBar(ctx: CanvasRenderingContext2D, game: Game) {
-  const buffs = game.effects.list();
+  // Show only the active weapon's buffs plus universal ones; other weapons'
+  // upgrades are still held, just hidden until you switch back.
+  const allWeaponBuffs = new Set(
+    Object.values(WEAPON_DEFS).flatMap((w) => w.buffs),
+  );
+  const currentWeaponBuffs = new Set(WEAPON_DEFS[game.weapon].buffs);
+  const buffs = game.effects
+    .list()
+    .filter(
+      ({ def }) =>
+        currentWeaponBuffs.has(def.kind) || !allWeaponBuffs.has(def.kind),
+    );
   const timed = game.effects.timedList();
   if (buffs.length === 0 && timed.length === 0) return;
 
@@ -1061,7 +1072,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, resuming: boolean) {
   row(ABILITY.color, ABILITY.name, ABILITY.desc);
 
   y += 10;
-  centered(ctx, 'Dodge pink DAMPENERS — they strip your upgrades', y, '11px', '#ff5cf0');
+  centered(ctx, 'Dodge pink DAMPENERS — each steals a random upgrade', y, '11px', '#ff5cf0');
   y += 22;
   centered(ctx, '← →  move   ·   SPACE = PULSE   ·   ESC / P = pause', y, '11px', COLORS.textDim);
   y += 30;

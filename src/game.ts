@@ -47,6 +47,11 @@ import { clamp, randRange, randInt, pickWeighted } from './util';
 
 const BEST_SCORE_KEY = 'lane-pusher.bestScore';
 
+/** Universal (non-weapon) buffs a dampener can strip. */
+const UNIVERSAL_BUFF_KINDS = UNIVERSAL_DROPS.filter(
+  (kind) => defFor(kind).type === 'buff',
+);
+
 export interface Player {
   lane: LaneIndex;
   /** Rendered x, which slides toward the target lane center. */
@@ -813,7 +818,10 @@ export class Game {
     }
   }
 
-  /** A hazard reaching the player wipes their buffs, unless a shield absorbs it. */
+  /**
+   * A dampener reaching the player strips one random upgrade — from the active
+   * weapon or the universal buffs — unless a shield absorbs it.
+   */
   private stripPlayer(source: Enemy) {
     if (this.player.shieldCharges > 0) {
       this.player.shieldCharges -= 1;
@@ -823,16 +831,17 @@ export class Game {
       return;
     }
 
-    const lost = this.effects.stripAll();
+    const candidates = [...WEAPON_DEFS[this.weapon].buffs, ...UNIVERSAL_BUFF_KINDS];
+    const stripped = this.effects.stripOne(candidates);
     this.shake = FX.shakeOnHit;
     this.burst(this.player.x, PLAYER.y, source.color, 18, 260);
     this.addFloater(
       this.player.x,
       PLAYER.y - 34,
-      lost > 0 ? 'DAMPENED!' : 'DAMPENER',
+      stripped ? `-${defFor(stripped).label}` : 'DAMPENER',
       source.color,
     );
-    this.events.emit('dampened', { lost });
+    this.events.emit('dampened', { lost: stripped ? 1 : 0 });
   }
 
   private damagePlayer(amount: number) {

@@ -270,6 +270,29 @@ describe('new power-ups', () => {
     expect(gain(2)).toBeGreaterThan(gain(0));
   });
 
+  it('a dampener removes one upgrade, not all of them', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const game = new Game(new ScriptedInput());
+    game.start();
+    game.weapon = 'blaster';
+    game.player.lane = 0;
+    game.player.x = laneCenterX(0);
+    game.player.shieldCharges = 0;
+    game.effects.apply('rapid');
+    game.effects.apply('rapid'); // 2
+    game.effects.apply('twin'); // 1
+    game.effects.apply('slow'); // 1 (universal)
+    const total = () => game.effects.list().reduce((sum, b) => sum + b.level, 0);
+    const before = total();
+
+    game.enemies = [
+      makeBoss({ kind: 'hazard', stripsPowerups: true, lane: 0, y: PLAYER.y, radius: 22 }),
+    ];
+    game.update(1 / 60);
+
+    expect(total()).toBe(before - 1); // exactly one level lost
+  });
+
   it('VAMP heals on a kill when the roll succeeds', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0); // always under the heal chance
     const game = new Game(new ScriptedInput());
