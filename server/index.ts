@@ -76,19 +76,45 @@ app.post('/api/session', (req, res) => {
  */
 app.get('/api/health', (_req, res) => {
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM scores').get() as { n: number };
+
   // Persistent when the DB lives on the attached volume, else fall back to
   // recognizing common volume roots by path.
   const persistent = volumeDir
     ? dbPath.startsWith(volumeDir)
     : /^(\/data|\/mnt|\/var\/data)\b/.test(dbPath);
+
+  // Probe the DB directory so a permission/mount problem is obvious.
+  const dbDir = path.dirname(dbPath);
+  const dirExists = fs.existsSync(dbDir);
+  let dirWritable = false;
+  try {
+    fs.accessSync(dbDir, fs.constants.W_OK);
+    dirWritable = true;
+  } catch {
+    dirWritable = false;
+  }
+  const fileExists = fs.existsSync(dbPath);
+  const fileBytes = fileExists ? fs.statSync(dbPath).size : 0;
+
   res.json({
     ok: true,
-    dbPath,
+    // Bump when the health shape changes, so a stale deploy is obvious.
+    healthVersion: 3,
     persistent,
-    // Echo whether Railway reported a volume, to diagnose setup at a glance:
-    // null here means no volume is attached to the service.
-    railwayVolume: volumeDir,
-    scores: n,
+    db: { path: dbPath, dirExists, dirWritable, fileExists, fileBytes, scores: n },
+    // Raw resolution inputs. These are non-secret Railway system values (paths,
+    // names, commit sha) — safe to echo, and exactly what's needed to see why
+    // the DB path resolved the way it did.
+    config: {
+      LEADERBOARD_DB: process.env.LEADERBOARD_DB ?? null,
+      RAILWAY_VOLUME_MOUNT_PATH: process.env.RAILWAY_VOLUME_MOUNT_PATH ?? null,
+      RAILWAY_VOLUME_NAME: process.env.RAILWAY_VOLUME_NAME ?? null,
+    },
+    deploy: {
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA ?? null,
+      environment: process.env.RAILWAY_ENVIRONMENT_NAME ?? null,
+      service: process.env.RAILWAY_SERVICE_NAME ?? null,
+    },
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
   });
 });
