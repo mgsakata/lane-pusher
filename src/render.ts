@@ -1205,22 +1205,29 @@ function drawTitle(ctx: CanvasRenderingContext2D, game: Game, time: number) {
 
   centered(
     ctx,
-    'Tap a lane, or use  ←  →  /  A  D',
+    'Tap a lane, or  ←  →  /  A  D',
     HEIGHT / 2 - 20,
     '16px',
     COLORS.text,
   );
   centered(
     ctx,
+    'Double-tap your lane to DODGE',
+    HEIGHT / 2 + 6,
+    '14px',
+    COLORS.playerInvuln,
+  );
+  centered(
+    ctx,
     'You fire automatically. Nothing gets past the line.',
-    HEIGHT / 2 + 8,
+    HEIGHT / 2 + 30,
     '14px',
     COLORS.textDim,
   );
   centered(
     ctx,
     'Power-ups are permanent — dodge the pink dampeners.',
-    HEIGHT / 2 + 32,
+    HEIGHT / 2 + 52,
     '14px',
     '#ff5cf0',
   );
